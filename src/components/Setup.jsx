@@ -1,6 +1,6 @@
 import VoiceInput from './VoiceInput';
 
-export default function Setup({ topic, setTopic, panellists, setPanellists, mode, setMode, start, error }) {
+export default function Setup({ topic, setTopic, panellists, setPanellists, mode, setMode, depth, setDepth, start, error }) {
   return <main className="setup card">
     <p className="eyebrow">One stage for every way of thinking</p>
     <h1>What should the gang brainstorm?</h1>
@@ -19,6 +19,12 @@ export default function Setup({ topic, setTopic, panellists, setPanellists, mode
         <select value={mode} onChange={event => setMode(event.target.value)}>
           <option value="grounded">Grounded colleagues</option>
           <option value="wild">Eccentric outsiders</option>
+        </select>
+      </label>
+      <label>Depth
+        <select value={depth} onChange={event => setDepth(event.target.value)}>
+          <option value="fast">⚡ Fast take</option>
+          <option value="deep">🔬 Deep dive</option>
         </select>
       </label>
     </div>

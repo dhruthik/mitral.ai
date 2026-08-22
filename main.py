@@ -14,13 +14,13 @@ import threading
 import uuid
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from mitral.fixture import canned_deliberation, canned_extra, canned_reply, canned_session
-from mitral.llm import MODEL, PROVIDER, configured
+from mitral.llm import FAST_MODEL, MODEL, PROVIDER, configured, transcribe
 from mitral.meeting import Meeting, llm_turn, llm_vote
 from mitral.mock import MockDriver, mock_cast
 from mitral.personality import (
@@ -74,6 +74,17 @@ class MeetingRequest(BaseModel):
     # auto = selected provider when its API key is set, offline mock otherwise
     engine: Literal["auto", "mock", "llm"] = "auto"
     plenary_only: bool = False
+    # fast = small model, short turn budget. deep = large model, longer budget.
+    depth: Literal["fast", "deep"] = "fast"
+
+
+# Model + turn-budget knobs per depth. Votes always use FAST_MODEL regardless
+# (see mitral.meeting.llm_vote) — a yes/no doesn't get slower or better on the
+# big model, so depth only changes how agents *talk*, not how they vote.
+DEPTH_SETTINGS: dict[str, dict[str, object]] = {
+    "fast": {"turn_model": FAST_MODEL, "total_turn_cap": 30, "room_turn_cap": 10},
+    "deep": {"turn_model": MODEL, "total_turn_cap": 90, "room_turn_cap": 20},
+}
 
 
 # Vite prints the localhost URL but the browser will happily be pointed at
@@ -129,6 +140,7 @@ def meeting(body: MeetingRequest) -> dict[str, object]:
     """
     if body.mode not in MODES:
         raise HTTPException(status_code=422, detail=f"mode must be one of {sorted(MODES)}")
+    settings = DEPTH_SETTINGS[body.depth]
     # DEV_MODE outranks the engine flag: the whole point is not to spend a minute
     # of sequential Mistral calls (or any credits) every time you reload the UI.
     live = not DEV_MODE and (
@@ -140,7 +152,9 @@ def meeting(body: MeetingRequest) -> dict[str, object]:
     try:
         if live:
             cast = generate_cast(body.topic, body.panellists, seed, body.mode)
-            turn_fn, vote_fn = llm_turn, llm_vote
+            turn_model = settings["turn_model"]
+            turn_fn = lambda persona, context: llm_turn(persona, context, model=turn_model)
+            vote_fn = llm_vote
         else:
             cast = mock_cast(body.topic, body.panellists, seed, body.mode)
             driver = MockDriver(body.topic, cast, seed)
@@ -152,7 +166,8 @@ def meeting(body: MeetingRequest) -> dict[str, object]:
             vote_fn=vote_fn,
             seed=seed,
             working_rooms=not body.plenary_only,
-            total_turn_cap=60 if live else 40,
+            total_turn_cap=settings["total_turn_cap"],
+            room_turn_cap=settings["room_turn_cap"],
         ).run()
     except HTTPException:
         raise
@@ -161,7 +176,8 @@ def meeting(body: MeetingRequest) -> dict[str, object]:
     return {
         "topic": body.topic,
         "engine": "llm" if live else "mock",
-        "model": MODEL if live else "mock",
+        "model": settings["turn_model"] if live else "mock",
+        "depth": body.depth,
         "seed": seed,
         "agents": _agents(cast),
         "events": [e.model_dump() for e in result.events],
@@ -177,6 +193,7 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
     """Stream casting and meeting events as newline-delimited JSON."""
     if body.mode not in MODES:
         raise HTTPException(status_code=422, detail=f"mode must be one of {sorted(MODES)}")
+    settings = DEPTH_SETTINGS[body.depth]
     live = not DEV_MODE and (
         body.engine == "llm" or (body.engine == "auto" and configured())
     )
@@ -194,7 +211,8 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
         cast: list[Persona] = []
         try:
             yield encode("meta", id=stream_id, topic=body.topic, engine="llm" if live else "mock",
-                         provider=PROVIDER if live else "mock", model=MODEL if live else "mock", seed=seed)
+                         provider=PROVIDER if live else "mock", model=settings["turn_model"] if live else "mock",
+                         depth=body.depth, seed=seed)
             source = generate_cast_iter(body.topic, body.panellists, seed, body.mode) if live else iter(
                 mock_cast(body.topic, body.panellists, seed, body.mode)
             )
@@ -207,7 +225,9 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
                 return
 
             if live:
-                turn_fn, vote_fn = llm_turn, llm_vote
+                turn_model = settings["turn_model"]
+                turn_fn = lambda persona, context: llm_turn(persona, context, model=turn_model)
+                vote_fn = llm_vote
             else:
                 driver = MockDriver(body.topic, cast, seed)
                 turn_fn, vote_fn = driver.turn, driver.vote
@@ -223,7 +243,8 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
                         vote_fn=vote_fn,
                         seed=seed,
                         working_rooms=not body.plenary_only,
-                        total_turn_cap=60 if live else 40,
+                        total_turn_cap=settings["total_turn_cap"],
+                        room_turn_cap=settings["room_turn_cap"],
                         on_event=lambda event: updates.put(("event", event.model_dump())),
                         should_stop=stop.is_set,
                     ).run()
@@ -351,6 +372,35 @@ def respond(body: ReplyRequest) -> dict[str, str]:
         return {"text": reply(persona, body.topic, body.message)}
     except Exception as exc:
         raise _upstream(exc) from exc
+
+
+MAX_AUDIO_BYTES = 15 * 1024 * 1024  # ~a couple minutes of webm/opus; plenty for a topic
+
+
+@app.post("/api/transcribe")
+async def transcribe_topic(file: UploadFile = File(...)) -> dict[str, str]:
+    """Speech-to-text for the "speak your topic" mic button.
+
+    Unlike the other endpoints this ignores DEV_MODE: a canned transcript
+    would be meaningless for testing real speech input, so this always needs
+    a real key regardless of whether the rest of the app is in dev mode. It
+    also always needs MISTRAL_API_KEY specifically — Voxtral is Mistral-only,
+    so this doesn't follow LLM_PROVIDER the way the panel endpoints do.
+    """
+    if not os.getenv("MISTRAL_API_KEY"):
+        raise HTTPException(status_code=503, detail="MISTRAL_API_KEY is not set in .env — voice input needs Mistral specifically")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=422, detail="no audio received")
+    if len(data) > MAX_AUDIO_BYTES:
+        raise HTTPException(status_code=413, detail="that recording is too long — keep it under a couple minutes")
+    try:
+        text = transcribe(data, file.filename or "audio.webm")
+    except Exception as exc:
+        raise _upstream(exc) from exc
+    if not text.strip():
+        raise HTTPException(status_code=422, detail="couldn't make out any speech in that recording")
+    return {"text": text}
 
 
 def _agents(cast: list[Persona]) -> list[dict]:

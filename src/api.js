@@ -27,17 +27,19 @@ async function post(path, body, signal) {
 // Runs a whole orchestrated meeting server-side and returns its event log for
 // playback. With a Mistral key configured this is many sequential model calls,
 // so expect it to take a while; without one it's an instant offline mock.
-export function runMeeting(topic, { panellists, mode }, signal) {
-  return post('/api/meeting', { topic, panellists, mode }, signal);
+// depth: 'fast' (small model, short budget) or 'deep' (large model, longer budget).
+export function runMeeting(topic, { panellists, mode, depth }, signal) {
+  return post('/api/meeting', { topic, panellists, mode, depth }, signal);
 }
 
-export async function streamMeeting(topic, { panellists, mode }, handlers = {}, signal) {
+// depth: 'fast' (small model, short budget) or 'deep' (large model, longer budget).
+export async function streamMeeting(topic, { panellists, mode, depth }, handlers = {}, signal) {
   let response;
   try {
     response = await fetch(`${API_URL}/api/meeting/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic, panellists, mode }),
+      body: JSON.stringify({ topic, panellists, mode, depth }),
       signal,
     });
   } catch (exception) {
@@ -85,6 +87,26 @@ export function startSession(topic, { panellists, mode }, signal) {
 
 export function replyAs(topic, persona, message, signal) {
   return post('/api/reply', { topic, persona, message }, signal);
+}
+
+// Speech-to-text for the mic button on the setup screen. Always hits real
+// Voxtral (see the backend docstring) — there's no meaningful offline mock
+// for "pretend you transcribed this audio".
+export async function transcribeAudio(blob, signal) {
+  const form = new FormData();
+  form.append('file', blob, 'topic.webm');
+  let response;
+  try {
+    response = await fetch(`${API_URL}/api/transcribe`, { method: 'POST', body: form, signal });
+  } catch (exception) {
+    if (exception.name === 'AbortError') throw exception;
+    throw new Error(`Can't reach the API at ${API_URL}. Start it with: uvicorn main:app --reload --port 8000`);
+  }
+  if (!response.ok) {
+    const detail = await response.json().then(b => b.detail).catch(() => null);
+    throw new Error(detail || `Request failed (${response.status})`);
+  }
+  return response.json();
 }
 
 // Adds one more voice to a panel that's already on stage. The existing cast and

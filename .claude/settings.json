@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git ls-tree *)",
+      "Bash(pip install *)",
+      "Bash(python -c ' *)",
+      "Bash(python -m pytest -q)",
+      "Bash(curl -s localhost:8123/sessions/d1d2943c0aba4dccba84c0e21c53e915)",
+      "Bash(curl -s localhost:8123/sessions/d1d2943c0aba4dccba84c0e21c53e915/transcript)",
+      "Bash(python -c \"import json,sys; data=json.load\\(sys.stdin\\); print\\(len\\(data\\), 'events'\\); [print\\(e['type']\\) for e in data[:6]]\")",
+      "Bash(taskkill //F //IM python.exe)",
+      "Bash(git add *)",
+      "Bash(git restore *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(env)",
+      "Bash(python -c \"import mistralai\")",
+      "Bash(pip show *)",
+      "WebSearch",
+      "WebFetch(domain:deepwiki.com)",
+      "Bash(python -c \"import mistralai; print\\(mistralai.__file__\\)\")",
+      "Bash(python -c \"from mistralai import Mistral; import inspect; print\\(inspect.signature\\(Mistral.__init__\\)\\)\")",
+      "Bash(python -c \"import mistralai, pkgutil; print\\(mistralai.__path__\\); [print\\(m.name\\) for m in pkgutil.iter_modules\\(mistralai.__path__\\)]\")",
+      "Bash(python -c \"from mistralai.client import Mistral; import inspect; print\\(inspect.signature\\(Mistral.__init__\\)\\)\")",
+      "Bash(python -c \"import mistralai.client as c, pkgutil; print\\(c.__path__ if hasattr\\(c,'__path__'\\) else 'not a package'\\); print\\(dir\\(c\\)\\)\")",
+      "Bash(git checkout *)",
+      "Bash(./.venv/Scripts/python.exe -c ' *)"
+    ]
+  }
+}

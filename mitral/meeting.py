@@ -606,16 +606,22 @@ def _persona_card(p: Any) -> str:
     return "\n".join(lines)
 
 
-def llm_turn(persona: Any, context: str) -> dict:
-    from .llm import complete_json
+def llm_turn(persona: Any, context: str, *, model: str | None = None) -> dict:
+    from .llm import MODEL, complete_json
 
-    return complete_json(f"{TURN_SYSTEM}\n\n{_persona_card(persona)}", context, temperature=0.9)
+    return complete_json(
+        f"{TURN_SYSTEM}\n\n{_persona_card(persona)}", context, temperature=0.9, model=model or MODEL
+    )
 
 
-def llm_vote(persona: Any, question: str) -> bool:
-    from .llm import complete_json
+def llm_vote(persona: Any, question: str, *, model: str | None = None) -> bool:
+    from .llm import FAST_MODEL, complete_json
 
-    data = complete_json(f"{VOTE_SYSTEM}\n\n{_persona_card(persona)}", question, temperature=0.3)
+    # A yes/no motion doesn't need the big model, and it fires once per
+    # occupant per motion — the fast model is the sane default here.
+    data = complete_json(
+        f"{VOTE_SYSTEM}\n\n{_persona_card(persona)}", question, temperature=0.3, model=model or FAST_MODEL
+    )
     return str(data.get("vote", "no")).strip().lower().startswith("y")
 
 

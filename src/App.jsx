@@ -24,6 +24,7 @@ export default function App() {
   const [topic, setTopic] = useState(() => randomTopic());
   const [panellists, setPanellists] = useState(4);
   const [mode, setMode] = useState('grounded');
+  const [depth, setDepth] = useState('fast');
   const [crew, setCrew] = useState([]);
   const [phase, setPhase] = useState('setup'); // setup | casting | running
   const [entries, setEntries] = useState([]);
@@ -78,11 +79,13 @@ export default function App() {
 
     let data;
     try {
-      data = await streamMeeting(cleanTopic, { panellists, mode }, {
+      data = await streamMeeting(cleanTopic, { panellists, mode, depth }, {
         meta: update => {
           streamId.current = update.id;
           setProvider(update.provider || '');
-          setModel(update.engine === 'llm' ? update.model : 'offline demo');
+          const engineLabel = update.engine === 'llm' ? update.model : 'offline demo';
+          const depthLabel = update.depth === 'deep' ? 'deep dive' : 'fast take';
+          setModel(`${engineLabel} · ${depthLabel}`);
         },
         agent: update => {
           const agent = decorateAgents([update.agent])[0];
@@ -324,7 +327,7 @@ export default function App() {
         <p>One stage, many ways of thinking.</p>
         {provider && provider !== 'mock' && <a className="mistral-credit" href={provider === 'claude' ? 'https://anthropic.com' : 'https://mistral.ai'} target="_blank" rel="noreferrer">Powered by {provider === 'claude' ? 'Claude' : 'Mistral AI'}</a>}
       </header>
-      {phase === 'setup' && <Setup {...{ topic, setTopic, panellists, setPanellists, mode, setMode, start, error }} />}
+      {phase === 'setup' && <Setup {...{ topic, setTopic, panellists, setPanellists, mode, setMode, depth, setDepth, start, error }} />}
       {phase === 'running' && <main className="session">
         <div className="topic-chip"><small>TOPIC</small>{topic}<span className={`api-state ${stopped ? '' : 'connected'}`}>{stopped ? 'stopped · no API calls' : model}</span></div>
         <div className="workspace"><Stage crew={crew} activeSpeaker={speaker} bubble={bubble} focusRoom={focusRoom} onFocusRoom={setFocusRoom} /><Transcript entries={visibleEntries} onCopy={() => copyTranscript(visibleEntries)} copied={copied} focusRoom={focusRoom} focusLabel={focusRoom && roomLabel(focusRoom)} onClearFocus={() => setFocusRoom(null)} /></div>
