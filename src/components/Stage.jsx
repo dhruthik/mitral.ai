@@ -25,6 +25,5 @@ export default function Stage({ crew, activeSpeaker, bubble }) {
         </div>;
       })}
     </div>
-    <div className="you">YOU</div>
   </section>;
 }
