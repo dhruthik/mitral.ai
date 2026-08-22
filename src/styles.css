@@ -135,7 +135,13 @@ input:focus { border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft);
 .dock-inner { max-width:1450px; margin:auto; display:flex; gap:12px; align-items:center; }
 .controls { display:flex; gap:8px; }
 .dock form { display:flex; gap:8px; flex:1; }
+.message-field { position:relative; display:flex; flex:1; }
 .dock form input { flex:1; }
+.mention-menu { position:absolute; left:0; right:0; bottom:calc(100% + 9px); overflow:hidden; padding:6px; border:1px solid var(--line); border-radius:14px; background:var(--surface); box-shadow:var(--shadow); }
+.mention-menu button { width:100%; display:flex; align-items:center; gap:10px; padding:9px 11px; border:0; border-radius:9px; color:var(--ink); background:transparent; text-align:left; }
+.mention-menu button:hover,.mention-menu button.selected { background:var(--brand-soft); }
+.mention-menu span { min-width:90px; color:var(--agent); font-family:Fredoka; font-weight:600; }
+.mention-menu small { overflow:hidden; color:var(--soft); text-overflow:ellipsis; white-space:nowrap; }
 .casting-line { animation:casting-in .45s ease-out; }
 @keyframes casting-in { from { opacity:0; transform:translateY(6px); } }
 @keyframes float { 50% { transform:translateY(-4px); } }
