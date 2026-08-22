@@ -1,10 +1,12 @@
+import Markdown from './Markdown';
+
 export function Transcript({ entries, onCopy, copied }) {
   return <aside className="transcript card">
     <h2>Chat <button type="button" className="copy-log" onClick={onCopy} disabled={!entries.length}>{copied ? '✓ Copied' : '⧉ Copy log'}</button></h2>
     <div className="transcript-list" aria-live="polite">
       {entries.map(entry => <div className={`entry ${entry.type || ''}`} key={entry.id} style={{ '--entry': entry.color }}>
         {entry.room && <span className="room-tag">{entry.room}</span>}
-        {entry.who && <strong>{entry.who}: </strong>}{entry.text}
+        {entry.who && <strong>{entry.who}: </strong>}<Markdown text={entry.text} />
       </div>)}
     </div>
   </aside>;
@@ -17,7 +19,7 @@ export function IdeaBoard({ ideas, winner }) {
       {!ideas.length && <p className="empty">Proposals from every room get pinned here…</p>}
       {ideas.map(idea => <article className={`note ${winner === idea.pid ? 'winner' : ''}`} key={idea.id} style={{ '--note-accent': idea.color }}>
         <strong>{idea.title} <span>· {idea.author}</span></strong>
-        <p>{idea.text}</p>
+        <div className="note-body"><Markdown text={idea.text} /></div>
         <footer>
           <span className="note-room">{idea.carried ? '📌 carried to plenary' : idea.room}</span>
           {idea.votes > 0 && <span className="note-votes">▲ {idea.votes}</span>}

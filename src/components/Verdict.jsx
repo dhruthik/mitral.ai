@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import Markdown from './Markdown';
 
 // The panel's closing argument. Everything here is derived from events the
 // client already replayed, so the modal costs no extra round trip.
@@ -23,7 +24,7 @@ export default function Verdict({ winner, milestones, ideas, topic, onClose }) {
 
       {winner ? <>
         <div className="verdict-answer" style={{ '--note-accent': winner.color }}>
-          <p>{winner.text}</p>
+          <div className="note-body"><Markdown text={winner.text} /></div>
           <footer>
             <span>proposed by <strong>{winner.author}</strong></span>
             <span className="note-votes">▲ {votes} {votes === 1 ? 'vote' : 'votes'}</span>
