@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import Markdown from './Markdown';
 
-export function Transcript({ entries, onCopy, copied, focusRoom, focusLabel, onClearFocus }) {
+export function Transcript({ entries, onCopy, copied, focusRoom, focusLabel, onClearFocus, expanded, onToggleExpanded }) {
   const list = useRef(null);
   useEffect(() => {
     const element = list.current;
@@ -10,7 +10,7 @@ export function Transcript({ entries, onCopy, copied, focusRoom, focusLabel, onC
     element.scrollTo({ top: element.scrollHeight, behavior: reduced ? 'auto' : 'smooth' });
   }, [entries.length]);
   return <aside className="transcript card">
-    <h2>{focusRoom ? focusLabel : 'Chat'} <button type="button" className="copy-log" onClick={onCopy} disabled={!entries.length}>{copied ? '✓ Copied' : '⧉ Copy log'}</button></h2>
+    <h2>{focusRoom ? focusLabel : 'Chat'} <span className="chat-actions"><button type="button" className="expand-chat" onClick={onToggleExpanded} aria-label={expanded ? 'Restore chat drawer' : 'Expand chat drawer'} title={expanded ? 'Restore chat drawer' : 'Expand chat drawer'}>{expanded ? '↘' : '↗'}</button><button type="button" className="copy-log" onClick={onCopy} disabled={!entries.length}>{copied ? '✓ Copied' : '⧉ Copy log'}</button></span></h2>
     {focusRoom && <button type="button" className="room-filter" onClick={onClearFocus}>
       Only what was said in {focusLabel} <span>✕ all rooms</span>
     </button>}
