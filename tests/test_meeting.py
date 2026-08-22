@@ -79,6 +79,41 @@ class MeetingDecisionTests(unittest.TestCase):
         self.assertIn("Use room-a, room-b, and room-c proactively", TURN_SYSTEM)
         self.assertIn("mingle in small groups", TURN_SYSTEM)
 
+    def test_zeroth_turn_hides_every_previous_answer(self):
+        meeting = self.meeting()
+        builder = meeting.agents["Builder"]
+        skeptic = meeting.agents["Skeptic"]
+        meeting.round = 0
+        meeting.zeroth_turn = True
+        meeting._emit(PLENARY, "spoke", "Builder", {"text": "a secret original idea"})
+        meeting._apply_action(builder, {
+            "tool": "propose", "title": "Secret plan", "body": "A private first answer."
+        })
+
+        context = meeting._render_context(skeptic)
+
+        self.assertIn("zeroth turn", context)
+        self.assertNotIn("secret original idea", context)
+        self.assertNotIn("Secret plan", context)
+
+    def test_first_turn_includes_the_zeroth_turn_history(self):
+        meeting = self.meeting()
+        builder = meeting.agents["Builder"]
+        skeptic = meeting.agents["Skeptic"]
+        meeting.round = 0
+        meeting.zeroth_turn = True
+        meeting._emit(PLENARY, "spoke", "Builder", {"text": "a secret original idea"})
+        meeting._apply_action(builder, {
+            "tool": "propose", "title": "Secret plan", "body": "A private first answer."
+        })
+        meeting.round = 1
+        meeting.zeroth_turn = False
+
+        context = meeting._render_context(skeptic)
+
+        self.assertIn("a secret original idea", context)
+        self.assertIn("Secret plan", context)
+
 
 class RoomIsolationTests(unittest.TestCase):
     """The promise the UI's per-room transcript rests on: what is said in a

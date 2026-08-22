@@ -140,6 +140,7 @@ class Meeting:
         self.log: list[Event] = []
         self.proposals: dict[str, Proposal] = {}
         self.round = 0
+        self.zeroth_turn = False
         self.turns = 0
         self.room_turns: dict[str, int] = defaultdict(int)
         # room -> pending motion, resolved at the round boundary
@@ -150,6 +151,17 @@ class Meeting:
     # ------------------------------------------------------------- the loop
 
     def run(self) -> MeetingResult:
+        # Zeroth turn: collect one independent idea from every panellist before
+        # anybody can anchor on, imitate, or prematurely critique somebody
+        # else's answer. The accumulated output becomes visible in round 1.
+        self.round = 0
+        self.zeroth_turn = True
+        for agent in list(self.agents.values()):
+            if self._stopped():
+                return self._halt()
+            self._take_turn(agent)
+        self.zeroth_turn = False
+
         while self.result is None:
             if self._stopped():
                 return self._halt()
@@ -223,6 +235,10 @@ class Meeting:
         if isinstance(actions, list):
             for action in actions[:4]:  # a turn is a turn, not a batch job
                 if isinstance(action, dict):
+                    # Round zero is intentionally pure parallel ideation. There
+                    # is no history to react to and no coordination yet.
+                    if self.zeroth_turn and action.get("tool") != "propose":
+                        continue
                     self._apply_action(agent, action)
 
     def _apply_action(self, agent: AgentState, action: dict) -> None:
@@ -483,6 +499,18 @@ class Meeting:
 
     def _render_context(self, agent: AgentState) -> str:
         """An agent's context is a render of only the rooms they were in."""
+        if self.zeroth_turn:
+            return "\n".join([
+                f"Topic: {self.topic}",
+                "",
+                "This is the zeroth turn: independent ideation before discussion begins.",
+                "You cannot see any other panellist's answer yet, even if they have already responded.",
+                "Give your own original approach without anticipating, comparing, building on, or critiquing others.",
+                "Speak briefly and use exactly one propose action. Do not use any other tool this turn.",
+                "",
+                "Reply with your JSON turn.",
+            ])
+
         visible = [ev for ev in self.log if ev.room == agent.room_at(ev.seq)]
         lines = [f"Topic: {self.topic}", "", f"You are in {agent.room}."]
         occupants = [a.name for a in self.occupants(agent.room) if a.name != agent.name]
