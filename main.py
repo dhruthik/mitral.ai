@@ -41,10 +41,21 @@ class ReplyRequest(BaseModel):
     persona: dict
 
 
+# Vite prints the localhost URL but the browser will happily be pointed at
+# 127.0.0.1 instead, and to CORS those are two different origins — allow both so
+# whichever one you paste in works. FRONTEND_ORIGIN overrides, comma-separated.
+DEFAULT_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
+]
+
 app = FastAPI(title="Brainstorm Stage API", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("FRONTEND_ORIGIN", "http://localhost:5173")],
+    allow_origins=[o.strip() for o in os.getenv("FRONTEND_ORIGIN", "").split(",") if o.strip()]
+    or DEFAULT_ORIGINS,
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
