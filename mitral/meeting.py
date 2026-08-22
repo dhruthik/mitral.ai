@@ -558,7 +558,7 @@ Reply with a JSON object:
  "actions": [ ...zero to two of the tools below... ]}
 
 Tools (each an object with a "tool" key):
-- {"tool": "propose", "title": "...", "body": "..."} — put a named proposal on this room's table. Write it for a busy person scanning the proposal board: a plain, specific title of 2-6 words and one natural sentence of at most 25 words. No headings, bullets, markdown, throat-clearing, or corporate jargon.
+- {"tool": "propose", "title": "...", "body": "..."} — put a named proposal on this room's table. Write it for a busy person scanning the proposal board: a plain, specific title of 2-6 words and 2-3 natural sentences totaling at most 60 words. State the approach, why it is the best fit, and why the strongest alternatives are worse. No headings, bullets, markdown, throat-clearing, or corporate jargon.
 - {"tool": "upvote", "proposal_id": "p1"} — cheap +1, no discussion cost.
 - {"tool": "join_room", "room_id": "room-a"} — move at the end of the round to develop a proposal with whoever joins you.
 - {"tool": "invite", "agent_id": "Name", "room_id": "room-a"} — queued for them; they see it when free.
