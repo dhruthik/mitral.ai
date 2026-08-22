@@ -103,7 +103,8 @@ class MockDriver:
         t = persona.traits
 
         if room == "plenary":
-            if not me["proposed"] and self.rng.random() < 0.8:
+            zeroth_turn = "This is the zeroth turn" in context
+            if not me["proposed"] and (zeroth_turn or self.rng.random() < 0.8):
                 me["proposed"] = True
                 title, body = self._idea(persona)
                 return {"speak": f"Hear me out — through the lens of {t.lens}: {body}",

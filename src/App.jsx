@@ -48,8 +48,7 @@ export default function App() {
   const [mentionIndex, setMentionIndex] = useState(0);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
-  const [model, setModel] = useState('');
-  const [provider, setProvider] = useState('');
+  const [connectionStatus, setConnectionStatus] = useState('offline');
   const [chatWidth, setChatWidth] = useState(300);
   const [chatExpanded, setChatExpanded] = useState(false);
   const workspace = useRef(null);
@@ -69,7 +68,7 @@ export default function App() {
     setTopic(cleanTopic); setPhase('running'); setError('');
     setWinner(null); setIdeas([]); setEntries([]); setCrew([]); setSpeaker(null); setBubble(null);
     setMilestones([]); setVerdictOpen(false); setClosed(false); setStopped(false);
-    setMessage(''); setProvider(''); setFocusRoom(null);
+    setMessage(''); setConnectionStatus('offline'); setFocusRoom(null);
     cancelled.current = false;
     streamId.current = null;
     titles.current = {};
@@ -77,7 +76,6 @@ export default function App() {
     request.current = new AbortController();
     const byName = {};
     session.current = { agents: [] };
-    setModel('assembling panel…');
     addEntry({ type: 'system', text: '🎭 The stage is open. Panellists will appear as they are created.' });
 
     let data;
@@ -86,10 +84,7 @@ export default function App() {
       data = await streamMeeting(meetingTopic, { panellists, mode, depth, cast: existingCast }, {
         meta: update => {
           streamId.current = update.id;
-          setProvider(update.provider || '');
-          const engineLabel = update.engine === 'llm' ? update.model : 'offline demo';
-          const depthLabel = update.depth === 'deep' ? 'deep dive' : 'fast take';
-          setModel(`${engineLabel} · ${depthLabel}`);
+          setConnectionStatus(update.engine === 'llm' ? 'online' : 'offline');
         },
         agent: update => {
           const agent = decorateAgents([update.agent])[0];
@@ -224,7 +219,7 @@ export default function App() {
   function transcriptText(visibleEntries) {
     const lines = [
       `TOPIC: ${topic}`,
-      `MODE: ${mode} · ${crew.length} panellists · ${model}`,
+      `MODE: ${mode} · ${crew.length} panellists · ${connectionStatus}`,
       focusRoom ? `ROOM: ${roomLabel(focusRoom)} only` : 'ROOM: all rooms',
       '',
       'PANEL',
@@ -349,6 +344,7 @@ export default function App() {
   function stop() {
     if (stopped) return;
     setStopped(true);
+    setConnectionStatus('offline');
     cancelled.current = true;
     if (streamId.current) stopMeeting(streamId.current).catch(() => {});
     request.current?.abort();
@@ -369,11 +365,10 @@ export default function App() {
       <header>
         <div className="logo">BRAINSTORM STAGE<span>_</span></div>
         <p>One stage, many ways of thinking.</p>
-        {provider && provider !== 'mock' && <a className="mistral-credit" href={provider === 'claude' ? 'https://anthropic.com' : 'https://mistral.ai'} target="_blank" rel="noreferrer">Powered by {provider === 'claude' ? 'Claude' : 'Mistral AI'}</a>}
       </header>
       {phase === 'setup' && <Setup {...{ topic, setTopic, panellists, setPanellists, mode, setMode, depth, setDepth, start, error }} />}
       {phase === 'running' && <main className="session">
-        <div className="topic-chip"><small>TOPIC</small>{topic}<span className={`api-state ${stopped ? '' : 'connected'}`}>{stopped ? 'stopped · no API calls' : model}</span></div>
+        <div className="topic-chip"><small>TOPIC</small>{topic}<span className={`api-state ${connectionStatus === 'online' && !stopped ? 'connected' : ''}`}>{stopped ? 'offline' : connectionStatus}</span></div>
         <div ref={workspace} className={`workspace ${chatExpanded ? 'chat-expanded' : ''}`} style={{ '--chat-width': `${chatWidth}px` }}>
           <Stage crew={crew} activeSpeaker={speaker} bubble={bubble} focusRoom={focusRoom} onFocusRoom={setFocusRoom} />
           <div className="chat-resizer" role="separator" aria-label="Resize chat" aria-orientation="vertical" tabIndex="0" onPointerDown={resizeChat} onKeyDown={resizeChatWithKeyboard} />
