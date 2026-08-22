@@ -19,11 +19,11 @@ source .venv/bin/activate && uvicorn main:app --reload --port 8000
 
 Frontend (second terminal): `npm run dev` (Vite, port 5173) · `npm run build` · `npm run preview`
 
-**Dev mode is on by default** (`DEV_MODE=1`): every endpoint serves the prewritten
-panel in `mitral/fixture.py` instead of calling Mistral — instant, free, same response
-shape, and the topic chip in the UI reads `dev fixture · no API calls` so you can see
-it. Always the same eight panellists talking about a night cafe regardless of the topic
-you type. Set `DEV_MODE=0` in `.env` (and restart uvicorn) for real generation.
+**Dev mode is off by default.** With `DEV_MODE=1` in `.env` (restart uvicorn), every
+endpoint serves the prewritten panel in `mitral/fixture.py` instead of calling Mistral —
+instant, free, same response shape, and the topic chip in the UI reads
+`dev fixture · no API calls` so you can see it. Always the same eight panellists talking
+about a night cafe regardless of the topic you type.
 
 Check the key is wired: `curl http://localhost:8000/api/health` — `llm_configured: false`
 means `MISTRAL_API_KEY` isn't in the root `.env`.

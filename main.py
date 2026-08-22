@@ -3,7 +3,7 @@
 The browser never sees the Mistral key: every call goes through here and out via
 `mitral.llm`. Generating a panel is a sequence of a dozen-odd model calls, so the
 session endpoint is slow by design — the UI shows a loading state rather than
-pretending with canned dialogue. The exception is DEV_MODE (on by default), which
+pretending with canned dialogue. The exception is DEV_MODE (off by default), which
 serves the prewritten panel in `mitral.fixture` so the UI can be built instantly.
 """
 import json
@@ -84,9 +84,9 @@ DEFAULT_ORIGINS = [
 ]
 
 # Dev mode serves the prewritten panel in mitral.fixture instead of calling
-# Mistral: instant, free, and the same response shape. On by default because
-# that is what you want while building the UI — set DEV_MODE=0 for real output.
-DEV_MODE = os.getenv("DEV_MODE", "1").lower() not in ("0", "false", "no", "")
+# Mistral: instant, free, and the same response shape. Off by default — set
+# DEV_MODE=1 to work on the UI without spending a minute (and money) per run.
+DEV_MODE = os.getenv("DEV_MODE", "0").lower() not in ("0", "false", "no", "")
 
 app = FastAPI(title="Brainstorm Stage API", version="2.0.0")
 app.add_middleware(
