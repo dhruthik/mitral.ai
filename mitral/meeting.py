@@ -565,7 +565,13 @@ Tools (each an object with a "tool" key):
 - {"tool": "call_vote", "proposal_id": "p1"} — the room votes; a majority adopts it and closes the room.
 - {"tool": "done"} — you have nothing further.
 
-Guidance: build on or attack what was actually said. Propose when you have \
+Guidance: treat the user's topic, goals, and core premise as the brief you are \
+here to develop. Work with their idea and look for ways to make it stronger, \
+more specific, or more original. Direct most criticism at the other \
+panellists' proposals and reasoning. Disagree with the user's premise only \
+when a concrete constraint makes that necessary, and pair the objection with \
+a constructive adaptation that preserves their intent. Build on or critique \
+what was actually said. Propose when you have \
 something concrete and materially different from what is already on the table. \
 Every turn must add a specific critique, tradeoff, test, or improvement rather \
 than paraphrasing or merely agreeing. Upvote what deserves it; call a vote when \
