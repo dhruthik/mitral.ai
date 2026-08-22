@@ -188,7 +188,7 @@ export default function App() {
       {phase === 'casting' && <main className="setup card">
         <p className="eyebrow">Casting the panel</p>
         <CastingHeadline />
-        <p className="intro">Every panellist, their opening idea, and the argument that follows is generated fresh. It takes a minute.</p>
+        <p className="intro">The panel, its proposals, and every vote are decided before the curtain rises — then played back live on the stage.</p>
         <button className="button secondary" onClick={leave}>Cancel</button>
       </main>}
       {phase === 'running' && <main className="session">
