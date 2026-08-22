@@ -7,7 +7,7 @@ const ROOMS = [
   ['room-c', 'Room C'],
 ];
 
-export default function Stage({ crew, activeSpeaker }) {
+export default function Stage({ crew, activeSpeaker, bubble }) {
   return <section className="stage card" aria-label="Brainstorm stage">
     <div className="stage-heading">
       <span className="stage-light" />
@@ -20,7 +20,7 @@ export default function Stage({ crew, activeSpeaker }) {
         return <div key={roomId} className={`room ${roomId} ${here.length ? '' : 'empty'}`}>
           <h3>{label}</h3>
           <div className="room-cast">
-            {here.map(agent => <Avatar key={agent.id} agent={agent} speaking={activeSpeaker === agent.id} />)}
+            {here.map(agent => <Avatar key={agent.id} agent={agent} speaking={activeSpeaker === agent.id} bubble={bubble?.agent === agent.id ? bubble : null} />)}
           </div>
         </div>;
       })}

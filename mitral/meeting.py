@@ -120,6 +120,7 @@ class Meeting:
         room_turn_cap: int = 18,
         total_turn_cap: int = 80,
         on_event: Callable[[Event], None] | None = None,
+        should_stop: Callable[[], bool] | None = None,
     ):
         if len(cast) < 2:
             raise ValueError("a meeting needs at least two panellists")
@@ -131,6 +132,9 @@ class Meeting:
         self.room_turn_cap = room_turn_cap
         self.total_turn_cap = total_turn_cap
         self.on_event = on_event
+        # Polled between turns so a hung-up client stops the spend: every turn is
+        # a model call, and the loop would otherwise run to its cap regardless.
+        self.should_stop = should_stop
 
         self.agents = {p.name: AgentState(persona=p) for p in cast}
         self.log: list[Event] = []
@@ -147,11 +151,15 @@ class Meeting:
 
     def run(self) -> MeetingResult:
         while self.result is None:
+            if self._stopped():
+                return self._halt()
             self.round += 1
             for room in ROOMS:
                 occupants = self.occupants(room)
                 if len(occupants) < 2:
                     continue  # invariant 2: no monologues
+                if self._stopped():
+                    return self._halt()
                 self._take_turn(self._pick_speaker(occupants))
                 if self.result:
                     break
@@ -162,6 +170,21 @@ class Meeting:
                 break
             self._resolve_movement()
             self._check_termination()
+        return self.result
+
+    def _stopped(self) -> bool:
+        return bool(self.should_stop and self.should_stop())
+
+    def _halt(self) -> MeetingResult:
+        """Abandon the meeting mid-flight. No session_closed is emitted: nothing
+        was decided, and whoever asked us to stop has stopped listening anyway."""
+        self.result = MeetingResult(
+            answer=None,
+            proposals=list(self.proposals.values()),
+            events=self.log,
+            rounds=self.round,
+            turns=self.turns,
+        )
         return self.result
 
     def occupants(self, room: str) -> list[AgentState]:
@@ -263,6 +286,8 @@ class Meeting:
             p = self.proposals.get(pid)
             if p is None or p.room != room:
                 agent.receipts.append(f"vote ignored: no proposal {pid} in this room")
+            elif not any(voter != p.author for voter in p.votes):
+                agent.receipts.append(f"vote ignored: {pid} needs another panellist's upvote first")
             else:
                 self.pending_votes[room] = {"proposal_id": pid, "caller": agent.name}
                 self._emit(room, "vote_called", agent.name, {"proposal_id": pid})
@@ -314,8 +339,18 @@ class Meeting:
                 continue
             occupants = self.occupants(room)
             voters = [a for a in occupants if a.name != motion["caller"]]
+            alternatives = [
+                other for other in self.proposals.values()
+                if other.room == room and other.id != p.id
+            ]
+            comparison = "\n".join(
+                f'- {other.id} "{other.title}" ({len(other.votes)} upvotes): {other.body}'
+                for other in alternatives
+            ) or "- none"
             question = (
-                f'Vote to adopt proposal {p.id} "{p.title}" and close {room}: {p.body}'
+                f'Vote to adopt proposal {p.id} "{p.title}" and close {room}.\n'
+                f'Candidate ({len(p.votes)} upvotes): {p.body}\n'
+                f'Alternatives still on the table:\n{comparison}'
             )
             yes = 1 + sum(1 for v in voters if self._safe_vote(v, question))
             if yes > len(occupants) / 2:
@@ -523,17 +558,29 @@ Reply with a JSON object:
  "actions": [ ...zero to two of the tools below... ]}
 
 Tools (each an object with a "tool" key):
-- {"tool": "propose", "title": "...", "body": "..."} — put a named proposal on this room's table. Title under 8 words, body 1-2 sentences.
+- {"tool": "propose", "title": "...", "body": "..."} — put a named proposal on this room's table. Write it for a busy person scanning the proposal board: a plain, specific title of 2-6 words and one natural sentence of at most 25 words. No headings, bullets, markdown, throat-clearing, or corporate jargon.
 - {"tool": "upvote", "proposal_id": "p1"} — cheap +1, no discussion cost.
 - {"tool": "join_room", "room_id": "room-a"} — move at the end of the round to develop a proposal with whoever joins you.
 - {"tool": "invite", "agent_id": "Name", "room_id": "room-a"} — queued for them; they see it when free.
 - {"tool": "call_vote", "proposal_id": "p1"} — the room votes; a majority adopts it and closes the room.
 - {"tool": "done"} — you have nothing further.
 
-Guidance: build on or attack what was actually said. Propose when you have \
-something concrete; upvote what deserves it; call a vote when a proposal has \
-clearly won the room; say done when you are repeating yourself. Do not \
-narrate tool use in your speech."""
+Guidance: treat the user's topic, goals, and core premise as the brief you are \
+here to develop. Work with their idea and look for ways to make it stronger, \
+more specific, or more original. Direct most criticism at the other \
+panellists' proposals and reasoning. Disagree with the user's premise only \
+when a concrete constraint makes that necessary, and pair the objection with \
+a constructive adaptation that preserves their intent. Build on or critique \
+what was actually said. You are encouraged to leave the plenary for room-a, \
+room-b, or room-c when an idea needs focused work. Invite a specific panellist \
+and request join_room; a working room only opens when at least two people can \
+enter together. Refine the proposal there, then vote to carry it back to the \
+plenary. Propose when you have something concrete and materially different \
+from what is already on the table. \
+Every turn must add a specific critique, tradeoff, test, or improvement rather \
+than paraphrasing or merely agreeing. Upvote what deserves it; call a vote when \
+a proposal has clearly won the room; say done when you are repeating yourself. \
+Do not narrate tool use in your speech."""
 
 VOTE_SYSTEM = """You are a panellist deciding a yes/no vote. Weigh it in \
 character and reply with JSON: {"vote": "yes"} or {"vote": "no"}."""

@@ -200,9 +200,10 @@ them funny. Never write a character whose contribution is only jokes.
 Each panellist is known by a title: "The" plus one evocative noun — The Dreamer, \
 The Whisperer, The Undertaker, The Cartographer, The Magpie, The Lighthouse \
 Keeper. Two or three words at most.
-- The noun should hint at how they think or what they care about without \
-naming the trait outright. "The Locksmith" for someone adversarial, yes; \
-"The Adversarial One", no.
+- The noun must be recognisably connected to the brainstorming topic or to the \
+panellist's relevant contribution. It should also hint at how they think or what \
+they care about without naming the trait outright. Never use an unrelated \
+occupation just because it metaphorically fits their thinking style.
 - Every title on one panel must be a different noun, and none may repeat a \
 title already used above.
 - Give them a specific past, not a vague one. "Ran logistics for a touring \
@@ -225,9 +226,10 @@ experience, not an exotic backstory.
 Each panellist is known by a title: "The" plus one evocative noun — The Dreamer, \
 The Whisperer, The Undertaker, The Cartographer, The Magpie, The Lighthouse \
 Keeper. Two or three words at most.
-- The noun should hint at how they think or what they care about without \
-naming the trait outright. "The Locksmith" for someone adversarial, yes; \
-"The Adversarial One", no.
+- The noun must be recognisably connected to the brainstorming topic or to the \
+panellist's relevant contribution. It should also hint at how they think or what \
+they care about without naming the trait outright. Never use an unrelated \
+occupation just because it metaphorically fits their thinking style.
 - Every title on one panel must be a different noun, and none may repeat a \
 title already used above.
 - What makes them distinct is what they push for and what they refuse to let \
@@ -325,11 +327,19 @@ def generate_cast(
     topic: str, n: int = 5, seed: int | None = None, mode: str = "grounded"
 ) -> list[Persona]:
     """Generate n personalities, sequentially so each can differentiate itself."""
+    return list(generate_cast_iter(topic, n, seed, mode))
+
+
+def generate_cast_iter(
+    topic: str, n: int = 5, seed: int | None = None, mode: str = "grounded"
+):
+    """Yield personalities as soon as each sequential model call finishes."""
     rng = random.Random(seed)
     cast: list[Persona] = []
     for traits in sample_traits(n, rng, mode):
-        cast.append(_write_persona(traits, topic, cast, seed, mode))
-    return cast
+        person = _write_persona(traits, topic, cast, seed, mode)
+        cast.append(person)
+        yield person
 
 
 def add_panellist(

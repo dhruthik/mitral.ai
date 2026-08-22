@@ -3,19 +3,24 @@
 The browser never sees the Mistral key: every call goes through here and out via
 `mitral.llm`. Generating a panel is a sequence of a dozen-odd model calls, so the
 session endpoint is slow by design — the UI shows a loading state rather than
-pretending with canned dialogue. The exception is DEV_MODE (on by default), which
+pretending with canned dialogue. The exception is DEV_MODE (off by default), which
 serves the prewritten panel in `mitral.fixture` so the UI can be built instantly.
 """
+import json
 import os
+import queue
 import random
+import threading
+import uuid
 from typing import Literal
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from mitral.fixture import canned_deliberation, canned_extra, canned_reply, canned_session
-from mitral.llm import FAST_MODEL, MODEL, transcribe
+from mitral.llm import FAST_MODEL, MODEL, PROVIDER, configured, transcribe
 from mitral.meeting import Meeting, llm_turn, llm_vote
 from mitral.mock import MockDriver, mock_cast
 from mitral.personality import (
@@ -26,6 +31,7 @@ from mitral.personality import (
     deliberate,
     first_takes,
     generate_cast,
+    generate_cast_iter,
     one_take,
     reply,
 )
@@ -56,12 +62,16 @@ class ReplyRequest(BaseModel):
     persona: dict
 
 
+class StopRequest(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+
+
 class MeetingRequest(BaseModel):
     topic: str = Field(min_length=1, max_length=500)
     panellists: int = Field(default=4, ge=2, le=8)
     mode: str = Field(default="grounded")  # cast flavor: grounded | wild
     seed: int | None = None
-    # auto = real Mistral panel when MISTRAL_API_KEY is set, offline mock otherwise
+    # auto = selected provider when its API key is set, offline mock otherwise
     engine: Literal["auto", "mock", "llm"] = "auto"
     plenary_only: bool = False
     # fast = small model, short turn budget. deep = large model, longer budget.
@@ -90,9 +100,15 @@ DEFAULT_ORIGINS = [
 ]
 
 # Dev mode serves the prewritten panel in mitral.fixture instead of calling
-# Mistral: instant, free, and the same response shape. On by default because
-# that is what you want while building the UI — set DEV_MODE=0 for real output.
-DEV_MODE = os.getenv("DEV_MODE", "1").lower() not in ("0", "false", "no", "")
+# Mistral: instant, free, and the same response shape. Off by default — set
+# DEV_MODE=1 to work on the UI without spending a minute (and money) per run.
+DEV_MODE = os.getenv("DEV_MODE", "0").lower() not in ("0", "false", "no", "")
+
+# Live streams, so the browser can actually call a halt: stream id -> flag that
+# the casting loop and the meeting thread both poll. Without it, hanging up only
+# stops the *playback* — the panel keeps talking to Mistral on our bill until it
+# hits its turn cap.
+_stops: dict[str, threading.Event] = {}
 
 app = FastAPI(title="Brainstorm Stage API", version="2.0.0")
 app.add_middleware(
@@ -108,7 +124,8 @@ app.add_middleware(
 def health() -> dict[str, object]:
     return {
         "status": "ok",
-        "llm_configured": bool(os.getenv("MISTRAL_API_KEY")),
+        "llm_configured": configured(),
+        "provider": PROVIDER,
         "dev_mode": DEV_MODE,
         "model": _model(),
     }
@@ -127,7 +144,7 @@ def meeting(body: MeetingRequest) -> dict[str, object]:
     # DEV_MODE outranks the engine flag: the whole point is not to spend a minute
     # of sequential Mistral calls (or any credits) every time you reload the UI.
     live = not DEV_MODE and (
-        body.engine == "llm" or (body.engine == "auto" and bool(os.getenv("MISTRAL_API_KEY")))
+        body.engine == "llm" or (body.engine == "auto" and configured())
     )
     if body.engine == "llm" and not DEV_MODE:
         _require_key()
@@ -159,7 +176,7 @@ def meeting(body: MeetingRequest) -> dict[str, object]:
     return {
         "topic": body.topic,
         "engine": "llm" if live else "mock",
-        "model": MODEL if live else "mock",
+        "model": settings["turn_model"] if live else "mock",
         "depth": body.depth,
         "seed": seed,
         "agents": _agents(cast),
@@ -169,6 +186,112 @@ def meeting(body: MeetingRequest) -> dict[str, object]:
         "rounds": result.rounds,
         "turns": result.turns,
     }
+
+
+@app.post("/api/meeting/stream")
+def meeting_stream(body: MeetingRequest) -> StreamingResponse:
+    """Stream casting and meeting events as newline-delimited JSON."""
+    if body.mode not in MODES:
+        raise HTTPException(status_code=422, detail=f"mode must be one of {sorted(MODES)}")
+    settings = DEPTH_SETTINGS[body.depth]
+    live = not DEV_MODE and (
+        body.engine == "llm" or (body.engine == "auto" and configured())
+    )
+    if body.engine == "llm" and not DEV_MODE:
+        _require_key()
+    seed = body.seed if body.seed is not None else random.randrange(1 << 30)
+    stream_id = uuid.uuid4().hex
+    stop = threading.Event()
+    _stops[stream_id] = stop
+
+    def encode(kind: str, **data) -> str:
+        return json.dumps({"type": kind, **data}) + "\n"
+
+    def stream():
+        cast: list[Persona] = []
+        try:
+            yield encode("meta", id=stream_id, topic=body.topic, engine="llm" if live else "mock",
+                         provider=PROVIDER if live else "mock", model=settings["turn_model"] if live else "mock",
+                         depth=body.depth, seed=seed)
+            source = generate_cast_iter(body.topic, body.panellists, seed, body.mode) if live else iter(
+                mock_cast(body.topic, body.panellists, seed, body.mode)
+            )
+            for person in source:
+                if stop.is_set():
+                    return  # stopped mid-casting; each persona is its own model call
+                cast.append(person)
+                yield encode("agent", agent=_agent(person, len(cast) - 1))
+            if stop.is_set():
+                return
+
+            if live:
+                turn_model = settings["turn_model"]
+                turn_fn = lambda persona, context: llm_turn(persona, context, model=turn_model)
+                vote_fn = llm_vote
+            else:
+                driver = MockDriver(body.topic, cast, seed)
+                turn_fn, vote_fn = driver.turn, driver.vote
+
+            updates: queue.Queue = queue.Queue()
+
+            def run_meeting() -> None:
+                try:
+                    result = Meeting(
+                        body.topic,
+                        cast,
+                        turn_fn=turn_fn,
+                        vote_fn=vote_fn,
+                        seed=seed,
+                        working_rooms=not body.plenary_only,
+                        total_turn_cap=settings["total_turn_cap"],
+                        room_turn_cap=settings["room_turn_cap"],
+                        on_event=lambda event: updates.put(("event", event.model_dump())),
+                        should_stop=stop.is_set,
+                    ).run()
+                    updates.put(("result", result))
+                except Exception as exc:
+                    updates.put(("error", exc))
+
+            threading.Thread(target=run_meeting, daemon=True).start()
+            while True:
+                kind, value = updates.get()
+                if kind == "event":
+                    yield encode("event", event=value)
+                elif kind == "result":
+                    yield encode(
+                        "result",
+                        agents=_agents(cast),
+                        proposals=[p.model_dump() for p in value.proposals],
+                        answer=value.answer.model_dump() if value.answer else None,
+                        rounds=value.rounds,
+                        turns=value.turns,
+                    )
+                    break
+                else:
+                    raise value
+        except Exception as exc:
+            yield encode("error", message=_upstream(exc).detail)
+        finally:
+            # Covers the client simply hanging up as well as the explicit button:
+            # closing the generator lands here and the meeting thread sees the flag.
+            stop.set()
+            _stops.pop(stream_id, None)
+
+    return StreamingResponse(
+        stream(),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.post("/api/meeting/stop")
+def meeting_stop(body: StopRequest) -> dict[str, bool]:
+    """Halt a running meeting so it stops spending. Idempotent, and unknown ids
+    are fine — the run may have finished on its own a moment earlier."""
+    stop = _stops.get(body.id)
+    if stop:
+        stop.set()
+    return {"stopped": stop is not None}
 
 
 @app.post("/api/session")
@@ -260,9 +383,12 @@ async def transcribe_topic(file: UploadFile = File(...)) -> dict[str, str]:
 
     Unlike the other endpoints this ignores DEV_MODE: a canned transcript
     would be meaningless for testing real speech input, so this always needs
-    a real key regardless of whether the rest of the app is in dev mode.
+    a real key regardless of whether the rest of the app is in dev mode. It
+    also always needs MISTRAL_API_KEY specifically — Voxtral is Mistral-only,
+    so this doesn't follow LLM_PROVIDER the way the panel endpoints do.
     """
-    _require_key()
+    if not os.getenv("MISTRAL_API_KEY"):
+        raise HTTPException(status_code=503, detail="MISTRAL_API_KEY is not set in .env — voice input needs Mistral specifically")
     data = await file.read()
     if not data:
         raise HTTPException(status_code=422, detail="no audio received")
@@ -302,10 +428,11 @@ def _model() -> str:
 
 
 def _require_key() -> None:
-    if not os.getenv("MISTRAL_API_KEY"):
+    if not configured():
+        key_name = "ANTHROPIC_API_KEY" if PROVIDER == "claude" else "MISTRAL_API_KEY"
         raise HTTPException(
             status_code=503,
-            detail="MISTRAL_API_KEY is not set — get one at https://console.mistral.ai and put it in .env",
+            detail=f"{key_name} is not set in .env",
         )
 
 

@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import Setup from './components/Setup';
 import Stage from './components/Stage';
 import { IdeaBoard, Transcript } from './components/Panels';
-import { runMeeting, replyAs } from './api';
+import Verdict from './components/Verdict';
+import { streamMeeting, replyAs, stopMeeting } from './api';
 import { decorateAgents } from './data';
+import { randomTopic } from './topics';
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const id = () => crypto.randomUUID();
@@ -18,85 +20,91 @@ const DELAYS = {
 
 const roomLabel = room => room === 'plenary' ? 'PLENARY' : room.replace('room-', 'ROOM ').toUpperCase();
 
-// The casting call is a full minute of sequential Mistral calls, so the screen
-// rotates through these rather than staring at one line the whole time.
-const CASTING_LINES = [
-  'Rounding up strangers with opinions…',
-  'Handing out contradictory worldviews…',
-  'Teaching someone to disagree politely…',
-  'Assigning one person far too much confidence…',
-  'Checking nobody brought the same idea twice…',
-  'Pouring the coffee, dimming the lights…',
-  'Writing bios nobody will fact-check…',
-  'Seating the quiet one next to the loud one…',
-];
-
-function CastingHeadline() {
-  const [index, setIndex] = useState(0);
-  useEffect(() => {
-    const timer = setInterval(() => setIndex(current => (current + 1) % CASTING_LINES.length), 3200);
-    return () => clearInterval(timer);
-  }, []);
-  return <h1 key={index} className="casting-line">{CASTING_LINES[index]}</h1>;
-}
-
 export default function App() {
-  const [topic, setTopic] = useState("a coffee shop that's only open at night");
+  const [topic, setTopic] = useState(() => randomTopic());
   const [panellists, setPanellists] = useState(4);
   const [mode, setMode] = useState('grounded');
   const [depth, setDepth] = useState('fast');
   const [crew, setCrew] = useState([]);
   const [phase, setPhase] = useState('setup'); // setup | casting | running
-  const [paused, setPaused] = useState(false);
   const [entries, setEntries] = useState([]);
   const [ideas, setIdeas] = useState([]);
   const [speaker, setSpeaker] = useState(null);
+  const [bubble, setBubble] = useState(null);
   const [winner, setWinner] = useState(null);
+  // The decision trail: the handful of events that actually moved the outcome,
+  // kept apart from the chat log so the verdict modal reads as a summary.
+  const [milestones, setMilestones] = useState([]);
+  const [verdictOpen, setVerdictOpen] = useState(false);
+  const [closed, setClosed] = useState(false);
+  // Stopped for good: the panel is halted server-side and nothing here will
+  // spend another credit. Distinct from paused, which only freezes playback.
+  const [stopped, setStopped] = useState(false);
   const [message, setMessage] = useState('');
+  const [mentionIndex, setMentionIndex] = useState(0);
   const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
   const [model, setModel] = useState('');
+  const [provider, setProvider] = useState('');
   const session = useRef(null);
   const cancelled = useRef(false);
-  const pausedRef = useRef(false);
-  const skipping = useRef(false);
+  const request = useRef(null);
+  const streamId = useRef(null);
+  // pid → title, so the decision trail can name proposals the way people do
+  // rather than echoing "p3" at the reader.
+  const titles = useRef({});
+  const titleOf = pid => titles.current[pid] ? `“${titles.current[pid]}”` : pid;
   const addEntry = entry => setEntries(current => [...current, { id: id(), ...entry }]);
+  const addStep = step => setMilestones(current => [...current, { id: id(), ...step }]);
 
   async function start() {
     const cleanTopic = topic.trim() || 'a delightful new community space';
-    setTopic(cleanTopic); setPhase('casting'); setError('');
-    setPaused(false); pausedRef.current = false; skipping.current = false;
-    setWinner(null); setIdeas([]); setEntries([]); setCrew([]); setSpeaker(null);
+    setTopic(cleanTopic); setPhase('running'); setError('');
+    setWinner(null); setIdeas([]); setEntries([]); setCrew([]); setSpeaker(null); setBubble(null);
+    setMilestones([]); setVerdictOpen(false); setClosed(false); setStopped(false);
+    setMessage(''); setProvider('');
     cancelled.current = false;
+    streamId.current = null;
+    titles.current = {};
+    request.current?.abort();
+    request.current = new AbortController();
+    const byName = {};
+    session.current = { agents: [] };
+    setModel('assembling panel…');
+    addEntry({ type: 'system', text: '🎭 The stage is open. Panellists will appear as they are created.' });
 
     let data;
     try {
-      data = await runMeeting(cleanTopic, { panellists, mode, depth });
+      data = await streamMeeting(cleanTopic, { panellists, mode, depth }, {
+        meta: update => {
+          streamId.current = update.id;
+          setProvider(update.provider || '');
+          const engineLabel = update.engine === 'llm' ? update.model : 'offline demo';
+          const depthLabel = update.depth === 'deep' ? 'deep dive' : 'fast take';
+          setModel(`${engineLabel} · ${depthLabel}`);
+        },
+        agent: update => {
+          const agent = decorateAgents([update.agent])[0];
+          byName[agent.name] = agent;
+          session.current.agents.push(update.agent);
+          setCrew(current => [...current, agent]);
+          addEntry({ type: 'system', text: `✦ ${agent.name} joins the panel — ${agent.role}.` });
+        },
+        event: async update => {
+          if (cancelled.current) return;
+          applyEvent(update.event, byName);
+          await wait(DELAYS[update.event.kind] ?? 500);
+        },
+      }, request.current.signal);
     } catch (exception) {
+      if (exception.name === 'AbortError') return;
       if (!cancelled.current) { setError(exception.message); setPhase('setup'); }
       return;
     }
     if (cancelled.current) return;
 
     session.current = data;
-    const engineLabel = data.engine === 'llm' ? data.model : 'offline demo';
-    const depthLabel = data.depth === 'deep' ? 'deep dive' : 'fast take';
-    setModel(`${engineLabel} · ${depthLabel}`);
-    const agents = decorateAgents(data.agents);
-    setCrew(agents);
-    setPhase('running');
-    addEntry({ type: 'system', text: `🎭 ${agents.map(a => a.name).join(', ')} take the stage — ${data.turns} turns over ${data.rounds} rounds.` });
-    playback(data, agents);
-  }
-
-  async function playback(data, agents) {
-    const byName = Object.fromEntries(agents.map(agent => [agent.name, agent]));
-    for (const event of data.events) {
-      while (pausedRef.current && !cancelled.current) await wait(200);
-      if (cancelled.current) return;
-      applyEvent(event, byName);
-      if (!skipping.current) await wait(DELAYS[event.kind] ?? 500);
-    }
-    setSpeaker(null);
+    setSpeaker(null); setBubble(null);
   }
 
   function applyEvent(event, byName) {
@@ -106,19 +114,26 @@ export default function App() {
     switch (event.kind) {
       case 'spoke':
         setSpeaker(agent?.id ?? null);
+        setBubble(agent ? { agent: agent.id, text: data.text, type: 'speech' } : null);
         addEntry({ who: event.agent, text: data.text, room, color: agent?.color });
         break;
       case 'proposed':
+        titles.current[data.proposal_id] = data.title;
         if (data.carried_from) {
           setIdeas(current => current.map(idea => idea.pid === data.proposal_id ? { ...idea, room, carried: true } : idea));
           addEntry({ type: 'system', text: `📌 ${event.agent} carries “${data.title}” back to the plenary.` });
+          addStep({ kind: 'carried', mark: '📌', text: `${event.agent} carries “${data.title}” back to the plenary.` });
         } else {
-          setIdeas(current => [...current, { id: id(), pid: data.proposal_id, title: data.title, text: data.body, author: event.agent, room, votes: 0, color: agent?.color }]);
+          setIdeas(current => [...current, { id: id(), pid: data.proposal_id, title: data.title, text: data.body, author: event.agent, room, votes: 0, voters: [], color: agent?.color }]);
           addEntry({ type: 'action', text: `📝 ${event.agent} pins ${data.proposal_id}: “${data.title}”`, room });
+          addStep({ kind: 'proposal', mark: '📝', text: `${event.agent} proposes “${data.title}”.`, room });
         }
         break;
       case 'upvoted':
-        setIdeas(current => current.map(idea => idea.pid === data.proposal_id ? { ...idea, votes: idea.votes + 1 } : idea));
+        setBubble(agent ? { agent: agent.id, text: `▲ ${data.proposal_id}`, type: 'vote' } : null);
+        setIdeas(current => current.map(idea => idea.pid === data.proposal_id
+          ? { ...idea, votes: idea.votes + 1, voters: [...(idea.voters || []), event.agent] }
+          : idea));
         addEntry({ type: 'action', text: `▲ ${event.agent} upvotes ${data.proposal_id}`, room });
         break;
       case 'joined':
@@ -128,24 +143,36 @@ export default function App() {
           setCrew(current => current.map(a => movers.has(a.name) ? { ...a, room: event.room } : a));
         }
         addEntry({ type: 'action', text: `🚪 ${event.agent} ${event.kind === 'joined' ? 'heads to' : 'returns to'} ${room}`, room });
+        if (event.kind === 'joined' && event.room !== 'plenary') {
+          const group = data.group || [event.agent];
+          // Every mover in a batch gets its own event carrying the same group;
+          // only the first one should write a step.
+          if (group[0] === event.agent) {
+            addStep({ kind: 'split', mark: '🚪', text: `${group.join(' and ')} break away to ${room}.` });
+          }
+        }
         break;
       case 'invited':
         addEntry({ type: 'action', text: `✉️ ${event.agent} slips an invitation to ${data.target} — “meet me in ${roomLabel(data.room)}”`, room });
         break;
       case 'vote_called':
         addEntry({ type: 'system', text: `🗳 ${event.agent} calls a vote on ${data.proposal_id} in ${room}.` });
+        addStep({ kind: 'vote', mark: '🗳', text: `${event.agent} calls a vote on ${titleOf(data.proposal_id)}.`, room });
         break;
       case 'vote_passed':
         addEntry({ type: 'system', text: `✅ Vote passes ${data.yes}/${data.of} in ${room}.` });
+        addStep({ kind: 'passed', mark: '✅', text: `Carried ${data.yes}–${data.of - data.yes}: ${titleOf(data.proposal_id)}.`, room });
         break;
       case 'vote_failed':
         addEntry({ type: 'system', text: `❌ Vote fails ${data.yes}/${data.of} in ${room}.` });
+        addStep({ kind: 'failed', mark: '❌', text: `Falls ${data.yes}–${data.of - data.yes}: ${titleOf(data.proposal_id)}.`, room });
         break;
       case 'done':
         addEntry({ type: 'action', text: `🤐 ${event.agent} has nothing further`, room });
         break;
       case 'kicked':
         addEntry({ type: 'system', text: `💥 ${event.agent} is voted out of ${room}.` });
+        addStep({ kind: 'kicked', mark: '💥', text: `${event.agent} is voted out of ${room}.` });
         break;
       case 'room_closed':
         addEntry({ type: 'system', text: `🔒 ${room} wraps up.` });
@@ -153,11 +180,62 @@ export default function App() {
       case 'session_closed':
         if (data.answer) setWinner(data.answer);
         addEntry({ type: 'system', text: data.answer ? `🏛 The session closes — ${data.answer} is the panel's answer.` : '🏛 The session closes without an agreed answer.' });
+        addStep({ kind: 'closed', mark: '🏛', text: data.answer ? 'The plenary closes and the answer stands.' : 'The plenary closes with nothing carried.' });
         setSpeaker(null);
+        setBubble(null);
+        setClosed(true);
+        setVerdictOpen(true);
         break;
       default:
         break;
     }
+  }
+
+  // The whole run as plain text, for pasting into another model to judge the
+  // output. Entries are already in order, so this is just a re-render of them
+  // plus the context the transcript itself never spells out.
+  function transcriptText() {
+    const lines = [
+      `TOPIC: ${topic}`,
+      `MODE: ${mode} · ${crew.length} panellists · ${model}`,
+      '',
+      'PANEL',
+      ...(crew.length ? crew.map(agent => `- ${agent.name} — ${agent.role} [${agent.cognition}]`) : ['(none yet)']),
+      '',
+      'ACTIVITY',
+      ...entries.map(entry => {
+        const room = entry.room ? `[${entry.room}] ` : '';
+        return entry.who ? `${room}${entry.who}: ${entry.text}` : `${room}${entry.text}`;
+      }),
+    ];
+    if (ideas.length) {
+      lines.push('', 'PROPOSALS');
+      for (const idea of ideas) {
+        lines.push(`- ${idea.pid} “${idea.title}” — ${idea.author} · ▲${idea.votes}${winner === idea.pid ? ' · WINNER' : ''}`);
+        lines.push(`  ${idea.text}`);
+      }
+    }
+    return lines.join('\n');
+  }
+
+  async function copyTranscript() {
+    const text = transcriptText();
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Clipboard API is unavailable outside secure contexts; fall back to the
+      // old execCommand trick rather than silently doing nothing.
+      const field = document.createElement('textarea');
+      field.value = text;
+      field.style.position = 'fixed';
+      field.style.opacity = '0';
+      document.body.appendChild(field);
+      field.select();
+      document.execCommand('copy');
+      field.remove();
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
   }
 
   async function interject(event) {
@@ -169,8 +247,10 @@ export default function App() {
     const mentioned = crew.find(agent => text.toLowerCase().includes(`@${agent.name.split(' ')[0].toLowerCase()}`));
     const responder = mentioned || crew[Math.floor(Math.random() * crew.length)];
     setSpeaker(responder.id);
+    setBubble({ agent: responder.id, text: '…', type: 'speech' });
     try {
       const { text: answer } = await replyAs(topic, responder.persona, text.replace(/^@\w+\s*/, ''));
+      setBubble({ agent: responder.id, text: answer, type: 'speech' });
       addEntry({ who: responder.name, text: answer, room: roomLabel(responder.room), color: responder.color });
     } catch (exception) {
       addEntry({ type: 'system', text: `⚠️ ${responder.name} couldn't answer: ${exception.message}` });
@@ -179,34 +259,93 @@ export default function App() {
     }
   }
 
+  const mentionMatch = message.match(/(^|\s)@([^\s@]*)$/);
+  const mentionQuery = mentionMatch?.[2].toLowerCase() ?? '';
+  const mentionOptions = mentionMatch
+    ? crew.filter(agent => `${agent.name} ${agent.role}`.toLowerCase().includes(mentionQuery))
+    : [];
+
+  function chooseMention(agent) {
+    const firstName = agent.name.split(' ')[0];
+    setMessage(current => current.replace(/(^|\s)@([^\s@]*)$/, `$1@${firstName} `));
+    setMentionIndex(0);
+  }
+
+  function handleMessageKeyDown(event) {
+    if (!mentionOptions.length) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const direction = event.key === 'ArrowDown' ? 1 : -1;
+      setMentionIndex(current => (current + direction + mentionOptions.length) % mentionOptions.length);
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      chooseMention(mentionOptions[mentionIndex] || mentionOptions[0]);
+    }
+  }
+
+  // The hard stop: tell the backend to abandon the meeting, hang up, and put the
+  // room in a state where nothing left on screen can start another model call.
+  function stop() {
+    if (stopped) return;
+    setStopped(true);
+    cancelled.current = true;
+    if (streamId.current) stopMeeting(streamId.current).catch(() => {});
+    request.current?.abort();
+    setSpeaker(null); setBubble(null);
+    addEntry({ type: 'system', text: '⏹ Session stopped. The panel is done and no further AI calls will be made.' });
+  }
+
   function leave() {
-    cancelled.current = true; session.current = null;
-    setPhase('setup'); setSpeaker(null);
+    cancelled.current = true; request.current?.abort(); session.current = null;
+    // Walking away has to stop the spend too, not just the playback.
+    if (streamId.current) stopMeeting(streamId.current).catch(() => {});
+    streamId.current = null;
+    setTopic(current => randomTopic(current)); setPhase('setup'); setSpeaker(null); setBubble(null);
   }
 
   return <>
     <div className="app-shell">
-      <header><div className="logo">BRAINSTORM STAGE<span>_</span></div><p>One stage, many ways of thinking.</p></header>
+      <header>
+        <div className="logo">BRAINSTORM STAGE<span>_</span></div>
+        <p>One stage, many ways of thinking.</p>
+        {provider && provider !== 'mock' && <a className="mistral-credit" href={provider === 'claude' ? 'https://anthropic.com' : 'https://mistral.ai'} target="_blank" rel="noreferrer">Powered by {provider === 'claude' ? 'Claude' : 'Mistral AI'}</a>}
+      </header>
       {phase === 'setup' && <Setup {...{ topic, setTopic, panellists, setPanellists, mode, setMode, depth, setDepth, start, error }} />}
-      {phase === 'casting' && <main className="setup card">
-        <p className="eyebrow">Casting the panel</p>
-        <CastingHeadline />
-        <p className="intro">The panel, its proposals, and every vote are decided before the curtain rises — then played back live on the stage.</p>
-        <button className="button secondary" onClick={leave}>Cancel</button>
-      </main>}
       {phase === 'running' && <main className="session">
-        <div className="topic-chip"><small>TOPIC</small>{topic}<span className="api-state connected">{model}</span></div>
-        <div className="workspace"><Stage crew={crew} activeSpeaker={speaker} /><Transcript entries={entries} /></div>
+        <div className="topic-chip"><small>TOPIC</small>{topic}<span className={`api-state ${stopped ? '' : 'connected'}`}>{stopped ? 'stopped · no API calls' : model}</span></div>
+        <div className="workspace"><Stage crew={crew} activeSpeaker={speaker} bubble={bubble} /><Transcript entries={entries} onCopy={copyTranscript} copied={copied} /></div>
         <IdeaBoard ideas={ideas} winner={winner} />
       </main>}
     </div>
+    {verdictOpen && <Verdict
+      winner={ideas.find(idea => idea.pid === winner) || null}
+      milestones={milestones}
+      ideas={ideas}
+      topic={topic}
+      onClose={() => setVerdictOpen(false)}
+    />}
     {phase === 'running' && <footer className="dock"><div className="dock-inner">
       <div className="controls">
-        <button className="button secondary" onClick={() => setPaused(value => { pausedRef.current = !value; return !value; })}>{paused ? '▶ Resume' : '⏸ Pause'}</button>
-        <button className="button secondary" onClick={() => { skipping.current = true; pausedRef.current = false; setPaused(false); }}>⏭ Skip to verdict</button>
+        {closed
+          ? <button className="button" onClick={() => setVerdictOpen(true)}>🏛 The verdict</button>
+          : null}
+        {!stopped && !closed && <button className="button danger" onClick={stop} title="End the conversation now — no further AI calls">⏹ Stop</button>}
         <button className="button secondary" onClick={leave}>✕ New session</button>
       </div>
-      <form onSubmit={interject}><input value={message} onChange={event => setMessage(event.target.value)} placeholder="Jump in… @mention any agent" aria-label="Message the group" /><button className="button">Say it</button></form>
+      {!stopped && <form onSubmit={interject}><div className="message-field">
+        {mentionOptions.length > 0 && <div className="mention-menu" role="listbox" aria-label="Agents">
+          {mentionOptions.map((agent, index) => <button
+            type="button"
+            role="option"
+            aria-selected={index === mentionIndex}
+            className={index === mentionIndex ? 'selected' : ''}
+            key={agent.id}
+            onMouseDown={event => event.preventDefault()}
+            onClick={() => chooseMention(agent)}
+          ><span style={{ '--agent': agent.color }}>@{agent.name.split(' ')[0]}</span><small>{agent.name} · {agent.role}</small></button>)}
+        </div>}
+        <input value={message} onChange={event => { setMessage(event.target.value); setMentionIndex(0); }} onKeyDown={handleMessageKeyDown} placeholder="Jump in… @mention any agent" aria-label="Message the group" aria-autocomplete="list" aria-expanded={mentionOptions.length > 0} />
+      </div><button className="button">Say it</button></form>}
     </div></footer>}
   </>;
 }
