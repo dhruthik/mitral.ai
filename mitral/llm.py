@@ -6,9 +6,11 @@ one-file change.
 
 import json
 import os
+import time
 
 from dotenv import load_dotenv
 from mistralai.client import Mistral  # note: mistralai>=2.9 moved this out of the root package
+from mistralai.client.errors.sdkerror import SDKError
 
 load_dotenv()
 
@@ -27,16 +29,35 @@ def client() -> Mistral:
     return _client
 
 
-def complete_json(system: str, user: str, *, seed: int | None = None, temperature: float = 1.0) -> dict:
-    """One-shot completion that is forced to return a JSON object."""
-    resp = client().chat.complete(
-        model=MODEL,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        response_format={"type": "json_object"},
-        temperature=temperature,
-        random_seed=seed,
-    )
-    return json.loads(resp.choices[0].message.content)
+def complete_json(
+    system: str,
+    user: str,
+    *,
+    seed: int | None = None,
+    temperature: float = 1.0,
+    retries: int = 5,
+) -> dict:
+    """One-shot completion that is forced to return a JSON object.
+
+    The free tier rate-limits hard (roughly a request a second), and we make
+    these calls in a tight sequence, so 429s are routine rather than
+    exceptional. Back off and retry instead of dying.
+    """
+    for attempt in range(retries):
+        try:
+            resp = client().chat.complete(
+                model=MODEL,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                response_format={"type": "json_object"},
+                temperature=temperature,
+                random_seed=seed,
+            )
+            return json.loads(resp.choices[0].message.content)
+        except SDKError as e:
+            if e.status_code != 429 or attempt == retries - 1:
+                raise
+            time.sleep(2**attempt)
+    raise AssertionError("unreachable")
