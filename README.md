@@ -71,6 +71,16 @@ curl http://localhost:8000/api/health
 `llm_configured` is `false`, the backend didn't find `MISTRAL_API_KEY` — check
 `.env` is in the repo root and restart uvicorn.
 
+### Dev mode
+
+`DEV_MODE=1` is the default, and it means nothing calls Mistral: every endpoint
+serves the prewritten panel in `mitral/fixture.py`. Sessions are instant and
+free, which is what you want while working on the UI — but it is always the same
+eight panellists, always talking about a night cafe, whatever topic you type. The
+topic chip reads `dev fixture · no API calls` when it's on.
+
+Set `DEV_MODE=0` in `.env` and restart uvicorn for real generation.
+
 ### What actually runs
 
 There is no canned dialogue: the panellists, their opening pitches, the plan and

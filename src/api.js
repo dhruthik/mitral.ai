@@ -40,3 +40,9 @@ export function startSession(topic, { panellists, mode }, signal) {
 export function replyAs(topic, persona, message, signal) {
   return post('/api/reply', { topic, persona, message }, signal);
 }
+
+// Adds one more voice to a panel that's already on stage. The existing cast and
+// their pitches go along so the newcomer differs from everyone in the room.
+export function addPanellist(topic, { mode, cast, pitches }, signal) {
+  return post('/api/panellist', { topic, mode, cast, pitches }, signal);
+}

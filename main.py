@@ -3,7 +3,8 @@
 The browser never sees the Mistral key: every call goes through here and out via
 `mitral.llm`. Generating a panel is a sequence of a dozen-odd model calls, so the
 session endpoint is slow by design — the UI shows a loading state rather than
-pretending with canned dialogue.
+pretending with canned dialogue. The exception is DEV_MODE (on by default), which
+serves the prewritten panel in `mitral.fixture` so the UI can be built instantly.
 """
 import os
 import random
@@ -13,15 +14,19 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from mitral.fixture import canned_deliberation, canned_extra, canned_reply, canned_session
 from mitral.llm import MODEL
 from mitral.meeting import Meeting, llm_turn, llm_vote
 from mitral.mock import MockDriver, mock_cast
 from mitral.personality import (
     MODES,
     Persona,
+    Pitch,
+    add_panellist,
     deliberate,
     first_takes,
     generate_cast,
+    one_take,
     reply,
 )
 
@@ -36,6 +41,13 @@ class SessionRequest(BaseModel):
     panellists: int = Field(default=5, ge=2, le=8)
     mode: str = Field(default="grounded")
     seed: int | None = None
+
+
+class AddRequest(BaseModel):
+    topic: str = Field(min_length=1, max_length=500)
+    mode: str = Field(default="grounded")
+    cast: list[dict]
+    pitches: list[dict] = Field(default_factory=list)
 
 
 class ReplyRequest(BaseModel):
@@ -64,6 +76,11 @@ DEFAULT_ORIGINS = [
     "http://127.0.0.1:4173",
 ]
 
+# Dev mode serves the prewritten panel in mitral.fixture instead of calling
+# Mistral: instant, free, and the same response shape. On by default because
+# that is what you want while building the UI — set DEV_MODE=0 for real output.
+DEV_MODE = os.getenv("DEV_MODE", "1").lower() not in ("0", "false", "no", "")
+
 app = FastAPI(title="Brainstorm Stage API", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
@@ -79,7 +96,8 @@ def health() -> dict[str, object]:
     return {
         "status": "ok",
         "llm_configured": bool(os.getenv("MISTRAL_API_KEY")),
-        "model": MODEL,
+        "dev_mode": DEV_MODE,
+        "model": _model(),
     }
 
 
@@ -134,21 +152,25 @@ def meeting(body: MeetingRequest) -> dict[str, object]:
 @app.post("/api/session")
 def session(body: SessionRequest) -> dict[str, object]:
     """Generate a whole panel: who's in the room, what they pitch, what wins."""
-    _require_key()
     if body.mode not in MODES:
         raise HTTPException(status_code=422, detail=f"mode must be one of {sorted(MODES)}")
     seed = body.seed if body.seed is not None else random.randrange(1 << 30)
-    try:
-        cast = generate_cast(body.topic, body.panellists, seed, body.mode)
-        pitches = first_takes(cast, body.topic, seed)
-        verdict = deliberate(cast, body.topic, pitches, seed)
-    except Exception as exc:
-        raise _upstream(exc) from exc
+    if DEV_MODE:
+        cast, pitches = canned_session(body.panellists, body.mode, seed)
+        verdict = canned_deliberation(cast)
+    else:
+        _require_key()
+        try:
+            cast = generate_cast(body.topic, body.panellists, seed, body.mode)
+            pitches = first_takes(cast, body.topic, seed)
+            verdict = deliberate(cast, body.topic, pitches, seed)
+        except Exception as exc:
+            raise _upstream(exc) from exc
 
     agents = _agents(cast)
     return {
         "topic": body.topic,
-        "model": MODEL,
+        "model": _model(),
         "seed": seed,
         "agents": agents,
         "pitches": [
@@ -162,14 +184,45 @@ def session(body: SessionRequest) -> dict[str, object]:
     }
 
 
+@app.post("/api/panellist")
+def panellist(body: AddRequest) -> dict[str, object]:
+    """One more voice for a panel that's already on stage."""
+    if body.mode not in MODES:
+        raise HTTPException(status_code=422, detail=f"mode must be one of {sorted(MODES)}")
+    try:
+        cast = [Persona(**p) for p in body.cast]
+        said = [(cast[i], Pitch(**q)) for i, q in enumerate(body.pitches) if i < len(cast)]
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail="that isn't a valid panel") from exc
+    if DEV_MODE:
+        try:
+            person, pitch = canned_extra(cast, body.mode)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+    else:
+        _require_key()
+        try:
+            person = add_panellist(body.topic, cast, mode=body.mode)
+            pitch = one_take(person, body.topic, said)
+        except ValueError as exc:  # trait pools exhausted — a real answer, not a crash
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except Exception as exc:
+            raise _upstream(exc) from exc
+
+    agent = _agent(person, len(cast))
+    return {"agent": agent, "pitch": {"agent": agent["id"], **pitch.model_dump()}}
+
+
 @app.post("/api/reply")
 def respond(body: ReplyRequest) -> dict[str, str]:
     """One panellist's answer to something the human said in the room."""
-    _require_key()
     try:
         persona = Persona(**body.persona)
     except Exception as exc:
         raise HTTPException(status_code=422, detail="persona is not a valid panellist") from exc
+    if DEV_MODE:
+        return {"text": canned_reply(persona, body.message)}
+    _require_key()
     try:
         return {"text": reply(persona, body.topic, body.message)}
     except Exception as exc:
@@ -177,20 +230,27 @@ def respond(body: ReplyRequest) -> dict[str, str]:
 
 
 def _agents(cast: list[Persona]) -> list[dict]:
-    return [
-        {
-            "id": f"{_slug(p.name)}-{i}",
-            "name": p.name,
-            "role": p.tagline,
-            "bio": p.bio,
-            "cognition": p.traits.cognition,
-            "glyph": GLYPHS[i % len(GLYPHS)],
-            "color": COLORS[i % len(COLORS)],
-            "index": i,
-            "persona": p.model_dump(),
-        }
-        for i, p in enumerate(cast)
-    ]
+    return [_agent(p, i) for i, p in enumerate(cast)]
+
+
+def _agent(p: Persona, i: int) -> dict[str, object]:
+    """Persona plus the stage furniture that keeps them visually distinct."""
+    return {
+        "id": f"{_slug(p.name)}-{i}",
+        "name": p.name,
+        "role": p.tagline,
+        "bio": p.bio,
+        "cognition": p.traits.cognition,
+        "glyph": GLYPHS[i % len(GLYPHS)],
+        "color": COLORS[i % len(COLORS)],
+        "index": i,
+        "persona": p.model_dump(),
+    }
+
+
+def _model() -> str:
+    """What the UI shows in the topic chip — and how you spot dev mode is on."""
+    return "dev fixture · no API calls" if DEV_MODE else MODEL
 
 
 def _require_key() -> None:
