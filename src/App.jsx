@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import Setup from './components/Setup';
 import Stage from './components/Stage';
 import { IdeaBoard, Transcript } from './components/Panels';
-import { startSession, replyAs } from './api';
+import { startSession, replyAs, addPanellist } from './api';
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const id = () => crypto.randomUUID();
@@ -20,6 +20,8 @@ export default function App() {
   const [winner, setWinner] = useState(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [selected, setSelected] = useState(null);
+  const [adding, setAdding] = useState(false);
   const [model, setModel] = useState('');
   const session = useRef(null);
   const cancelled = useRef(false);
@@ -30,7 +32,7 @@ export default function App() {
     const cleanTopic = topic.trim() || 'a delightful new community space';
     setTopic(cleanTopic); setPhase('casting'); setError('');
     setPaused(false); pausedRef.current = false;
-    setWinner(null); setIdeas([]); setEntries([]); setCrew([]);
+    setWinner(null); setIdeas([]); setEntries([]); setCrew([]); setSelected(null);
     cancelled.current = false;
 
     let data;
@@ -78,6 +80,31 @@ export default function App() {
     setSpeaker(null);
   }
 
+  async function addSomeone() {
+    const data = session.current;
+    if (!data || adding) return;
+    setAdding(true);
+    try {
+      const { agent, pitch } = await addPanellist(topic, {
+        mode,
+        cast: data.agents.map(a => a.persona),
+        pitches: data.pitches,
+      });
+      // Keep the session in step so the quorum and @mentions know about them.
+      data.agents = [...data.agents, agent];
+      data.pitches = [...data.pitches, pitch];
+      setCrew(current => [...current, { ...agent, room: 'dream' }]);
+      addEntry({ who: agent.name, text: pitch.pitch, room: 'DREAM', color: agent.color });
+      setIdeas(current => [...current, {
+        id: agent.id, text: pitch.idea, author: agent.name, room: 'DREAM', color: agent.color,
+      }]);
+    } catch (exception) {
+      addEntry({ type: 'system', text: `⚠️ Couldn't cast anyone new: ${exception.message}` });
+    } finally {
+      setAdding(false);
+    }
+  }
+
   function callQuorum() {
     const data = session.current;
     if (!data) return;
@@ -94,7 +121,11 @@ export default function App() {
     if (!text || !session.current) return;
     addEntry({ who: 'You', text, type: 'user' });
     setMessage('');
-    const mentioned = crew.find(agent => text.toLowerCase().includes(`@${agent.name.split(' ')[0].toLowerCase()}`));
+    // Everyone is "The Something", so match on the noun, not the first word.
+    const mentioned = crew.find(agent => {
+      const words = agent.name.toLowerCase().split(' ');
+      return text.toLowerCase().includes(`@${words[words.length - 1]}`);
+    });
     const responder = mentioned || crew[Math.floor(Math.random() * crew.length)];
     setSpeaker(responder.id);
     try {
@@ -124,7 +155,7 @@ export default function App() {
       </main>}
       {phase === 'running' && <main className="session">
         <div className="topic-chip"><small>TOPIC</small>{topic}<span className="api-state connected">{model}</span></div>
-        <div className="workspace"><Stage crew={crew} activeSpeaker={speaker} /><Transcript entries={entries} /></div>
+        <div className="workspace"><Stage crew={crew} activeSpeaker={speaker} selected={selected} onSelect={setSelected} onAdd={addSomeone} adding={adding} /><Transcript entries={entries} /></div>
         <IdeaBoard ideas={ideas} winner={winner} />
       </main>}
     </div>

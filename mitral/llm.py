@@ -16,6 +16,11 @@ load_dotenv()
 
 MODEL = "mistral-large-latest"
 
+# Writing a personality is a small, high-volume job — a dozen calls per session,
+# each one a short character sketch. The small model does it just as well and
+# several times faster, which is most of the wait on a new session.
+FAST_MODEL = "mistral-small-latest"
+
 _client: Mistral | None = None
 
 
@@ -36,6 +41,7 @@ def complete_json(
     seed: int | None = None,
     temperature: float = 1.0,
     retries: int = 5,
+    model: str = MODEL,
 ) -> dict:
     """One-shot completion that is forced to return a JSON object.
 
@@ -46,7 +52,7 @@ def complete_json(
     for attempt in range(retries):
         try:
             resp = client().chat.complete(
-                model=MODEL,
+                model=model,
                 messages=[
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
