@@ -5,6 +5,7 @@ import { IdeaBoard, Transcript } from './components/Panels';
 import Verdict from './components/Verdict';
 import { streamMeeting, replyAs, stopMeeting } from './api';
 import { decorateAgents } from './data';
+import { randomTopic } from './topics';
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const id = () => crypto.randomUUID();
@@ -20,7 +21,7 @@ const DELAYS = {
 const roomLabel = room => room === 'plenary' ? 'PLENARY' : room.replace('room-', 'ROOM ').toUpperCase();
 
 export default function App() {
-  const [topic, setTopic] = useState("a coffee shop that's only open at night");
+  const [topic, setTopic] = useState(() => randomTopic());
   const [panellists, setPanellists] = useState(4);
   const [mode, setMode] = useState('grounded');
   const [crew, setCrew] = useState([]);
@@ -274,7 +275,7 @@ export default function App() {
     // Walking away has to stop the spend too, not just the playback.
     if (streamId.current) stopMeeting(streamId.current).catch(() => {});
     streamId.current = null;
-    setPhase('setup'); setSpeaker(null); setBubble(null);
+    setTopic(current => randomTopic(current)); setPhase('setup'); setSpeaker(null); setBubble(null);
   }
 
   return <>
