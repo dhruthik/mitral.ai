@@ -93,11 +93,14 @@ export function replyAs(topic, persona, message, signal) {
 // Voxtral (see the backend docstring) — there's no meaningful offline mock
 // for "pretend you transcribed this audio".
 export async function transcribeAudio(blob, signal) {
-  const form = new FormData();
-  form.append('file', blob, 'topic.webm');
   let response;
   try {
-    response = await fetch(`${API_URL}/api/transcribe`, { method: 'POST', body: form, signal });
+    response = await fetch(`${API_URL}/api/transcribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': blob.type || 'application/octet-stream', 'X-Filename': 'topic.webm' },
+      body: blob,
+      signal,
+    });
   } catch (exception) {
     if (exception.name === 'AbortError') throw exception;
     throw new Error(`Can't reach the API at ${API_URL}. Start it with: uvicorn main:app --reload --port 8000`);

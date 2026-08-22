@@ -14,7 +14,7 @@ import threading
 import uuid
 from typing import Literal
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -378,7 +378,7 @@ MAX_AUDIO_BYTES = 15 * 1024 * 1024  # ~a couple minutes of webm/opus; plenty for
 
 
 @app.post("/api/transcribe")
-async def transcribe_topic(file: UploadFile = File(...)) -> dict[str, str]:
+async def transcribe_topic(request: Request) -> dict[str, str]:
     """Speech-to-text for the "speak your topic" mic button.
 
     Unlike the other endpoints this ignores DEV_MODE: a canned transcript
@@ -389,13 +389,13 @@ async def transcribe_topic(file: UploadFile = File(...)) -> dict[str, str]:
     """
     if not os.getenv("MISTRAL_API_KEY"):
         raise HTTPException(status_code=503, detail="MISTRAL_API_KEY is not set in .env — voice input needs Mistral specifically")
-    data = await file.read()
+    data = await request.body()
     if not data:
         raise HTTPException(status_code=422, detail="no audio received")
     if len(data) > MAX_AUDIO_BYTES:
         raise HTTPException(status_code=413, detail="that recording is too long — keep it under a couple minutes")
     try:
-        text = transcribe(data, file.filename or "audio.webm")
+        text = transcribe(data, request.headers.get("x-filename", "audio.webm"))
     except Exception as exc:
         raise _upstream(exc) from exc
     if not text.strip():
