@@ -13,6 +13,9 @@
     --note: #FFF3C4;
     --note-ink: #5C4A12;
     --shadow: 0 10px 30px rgba(43, 36, 64, 0.10);
+    --dream-tint: rgba(124, 92, 232, 0.07);
+    --real-tint: rgba(76, 155, 224, 0.07);
+    --crit-tint: rgba(232, 106, 138, 0.07);
     --quorum-tint: rgba(224, 185, 61, 0.10);
   }
   @media (prefers-color-scheme: dark) {
@@ -28,6 +31,9 @@
       --note: #E8D98A;
       --note-ink: #3D3208;
       --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      --dream-tint: rgba(124, 92, 232, 0.12);
+      --real-tint: rgba(76, 155, 224, 0.12);
+      --crit-tint: rgba(232, 106, 138, 0.12);
       --quorum-tint: rgba(224, 185, 61, 0.12);
     }
   }
@@ -43,6 +49,9 @@
     --note: #E8D98A;
     --note-ink: #3D3208;
     --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    --dream-tint: rgba(124, 92, 232, 0.12);
+    --real-tint: rgba(76, 155, 224, 0.12);
+    --crit-tint: rgba(232, 106, 138, 0.12);
     --quorum-tint: rgba(224, 185, 61, 0.12);
   }
 
@@ -55,12 +64,12 @@
     line-height: 1.5;
   }
   .app {
-    max-width: 1260px;
+    max-width: 1500px;
     margin: 0 auto;
     padding: 20px 24px 120px;
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 16px;
   }
 
   header.top { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
@@ -88,7 +97,7 @@
     margin: 0 0 8px;
     text-wrap: balance;
   }
-  .setup p.sub { color: var(--ink-soft); margin: 0 auto 28px; max-width: 50ch; }
+  .setup p.sub { color: var(--ink-soft); margin: 0 auto 28px; max-width: 56ch; }
   .topic-row {
     display: flex;
     gap: 10px;
@@ -134,8 +143,8 @@
   }
   .reroll { margin-top: 16px; }
 
-  /* ---------- Layout ---------- */
-  .session { display: none; flex-direction: column; gap: 18px; }
+  /* ---------- Layout: rooms left half, chat right half, ideas bottom ---------- */
+  .session { display: none; flex-direction: column; gap: 16px; }
   .session.active { display: flex; }
   .setup.hidden { display: none; }
 
@@ -164,67 +173,63 @@
 
   .main-grid {
     display: grid;
-    grid-template-columns: 1fr 330px;
-    gap: 18px;
+    grid-template-columns: minmax(0, 1.15fr) minmax(320px, 1fr);
+    gap: 16px;
     align-items: stretch;
   }
 
-  /* ---------- The rooms ---------- */
+  /* ---------- The rooms (2x2, all connected through the center) ---------- */
   .stage {
     position: relative;
     background:
-      radial-gradient(ellipse 90% 55% at 50% 0%, var(--brand-soft) 0%, transparent 60%),
       repeating-conic-gradient(var(--surface-2) 0% 25%, transparent 0% 50%) 0 0 / 56px 56px,
       var(--surface);
     border: 1px solid var(--line);
     border-radius: 20px;
     box-shadow: var(--shadow);
-    min-height: 540px;
+    min-height: 700px;
     overflow: hidden;
   }
-  .quorum-floor {
-    position: absolute;
-    left: 34%; right: 34%;
-    top: 0; bottom: 0;
-    background: var(--quorum-tint);
-    z-index: 0;
-  }
-  .wall-seg {
-    position: absolute;
-    width: 8px;
-    margin-left: -4px;
-    background: repeating-linear-gradient(0deg, var(--line) 0 14px, var(--surface-2) 14px 28px);
-    border-radius: 4px;
-    z-index: 1;
-  }
-  .wall-seg.w1 { left: 34%; }
-  .wall-seg.w2 { left: 66%; }
-  .wall-top { top: 0; height: calc(50% - 60px); }
-  .wall-bottom { bottom: 0; height: calc(50% - 60px); }
+  .room-floor { position: absolute; z-index: 0; }
+  .room-floor.f0 { left: 0; top: 0; width: 50%; height: 52%; background: var(--dream-tint); }
+  .room-floor.f1 { left: 50%; top: 0; right: 0; height: 52%; background: var(--real-tint); }
+  .room-floor.f2 { left: 0; top: 52%; width: 50%; bottom: 0; background: var(--crit-tint); }
+  .room-floor.fq { left: 50%; top: 52%; right: 0; bottom: 0; background: var(--quorum-tint); }
+
+  .wall-seg { position: absolute; background: repeating-linear-gradient(0deg, var(--line) 0 14px, var(--surface-2) 14px 28px); border-radius: 4px; z-index: 1; }
+  .wall-v { left: 50%; width: 8px; margin-left: -4px; }
+  .wall-v.top { top: 0; height: calc(52% - 74px); }
+  .wall-v.bottom { top: calc(52% + 74px); bottom: 0; }
+  .wall-h { top: 52%; height: 8px; margin-top: -4px; background: repeating-linear-gradient(90deg, var(--line) 0 14px, var(--surface-2) 14px 28px); }
+  .wall-h.left { left: 0; width: calc(50% - 74px); }
+  .wall-h.right { left: calc(50% + 74px); right: 0; }
+
   .room-label {
     position: absolute;
-    top: 10px;
     font-family: 'Silkscreen', sans-serif;
-    font-size: 0.6rem;
+    font-size: 0.58rem;
     padding: 3px 10px;
     border-radius: 8px;
     border: 2px solid var(--r-c, var(--line));
     color: var(--r-c, var(--ink-soft));
     background: var(--surface);
     z-index: 1;
-    max-width: 31%;
+    max-width: 46%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .room-label.r0 { left: 12px; }
-  .room-label.rq { left: 50%; transform: translateX(-50%); }
-  .room-label.r1 { right: 12px; }
+  .room-label .pur { opacity: 0.65; }
+  .room-label.p0 { top: 10px; left: 12px; }
+  .room-label.p1 { top: 10px; right: 12px; }
+  .room-label.p2 { top: calc(52% + 10px); left: 12px; }
+  .room-label.pq { top: calc(52% + 10px); right: 12px; }
+
   .cast { position: absolute; inset: 0; z-index: 2; }
   .you-marker {
     position: absolute;
-    bottom: 8px; left: 50%;
-    transform: translateX(-50%);
+    bottom: 8px; right: 25%;
+    transform: translateX(50%);
     font-family: 'Silkscreen', sans-serif;
     font-size: 0.6rem;
     color: var(--brand);
@@ -239,7 +244,7 @@
     left: 12px;
     z-index: 6;
     font-family: 'Silkscreen', sans-serif;
-    font-size: 0.6rem;
+    font-size: 0.58rem;
     color: var(--ink-soft);
     background: var(--surface);
     border: 2px solid var(--line);
@@ -248,14 +253,15 @@
     opacity: 0;
     transition: opacity 0.3s ease;
     pointer-events: none;
-    max-width: 60%;
+    max-width: 55%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .action-chip.c0 { top: 40px; }
-  .action-chip.c1 { top: 66px; }
-  .action-chip.c2 { top: 92px; }
+  .action-chip.c0 { top: 36px; }
+  .action-chip.c1 { top: 62px; }
+  .action-chip.c2 { top: 88px; }
+  .action-chip.c3 { top: 114px; }
   .action-chip.show { opacity: 1; }
   .action-chip .a-who { color: var(--a-c, var(--brand)); }
 
@@ -292,14 +298,14 @@
     50% { transform: translateY(-5px) rotate(2deg); }
   }
   canvas.sprite {
-    width: 56px; height: 75px;
+    width: 52px; height: 70px;
     image-rendering: pixelated;
     transition: transform 0.2s ease;
   }
   .cast-preview canvas.sprite { width: 70px; height: 94px; }
   .character.face-left canvas.sprite { transform: scaleX(-1); }
   .character .shadow-dot {
-    width: 46px; height: 8px;
+    width: 44px; height: 8px;
     background: rgba(43, 36, 64, 0.15);
     border-radius: 50%;
     margin-top: -4px;
@@ -307,15 +313,15 @@
   .character .nm {
     font-family: 'Silkscreen', sans-serif;
     font-weight: 700;
-    font-size: 0.68rem;
+    font-size: 0.66rem;
     color: var(--c);
     background: var(--surface);
     border: 1px solid var(--line);
-    padding: 2px 10px;
+    padding: 2px 9px;
     border-radius: 6px;
   }
   .character .stance {
-    font-size: 0.64rem;
+    font-size: 0.62rem;
     font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -388,9 +394,9 @@
     background: var(--surface);
     border: 2px solid var(--b-c, var(--line));
     border-radius: 14px;
-    padding: 12px 16px;
+    padding: 11px 15px;
     box-shadow: var(--shadow);
-    font-size: 0.94rem;
+    font-size: 0.92rem;
     opacity: 0;
     transform: scale(0.6);
     transform-origin: bottom center;
@@ -401,7 +407,7 @@
   .bubble .who {
     font-family: 'Silkscreen', sans-serif;
     font-weight: 700;
-    font-size: 0.64rem;
+    font-size: 0.62rem;
     color: var(--b-c);
     margin-bottom: 2px;
   }
@@ -426,7 +432,7 @@
   }
   .bubble.done .cur { display: none; }
 
-  /* ---------- Chat ---------- */
+  /* ---------- Chat (right half) ---------- */
   .transcript {
     background: var(--surface);
     border: 1px solid var(--line);
@@ -435,7 +441,7 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    min-height: 540px;
+    min-height: 700px;
   }
   .panel-h {
     font-family: 'Silkscreen', sans-serif;
@@ -457,13 +463,13 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    max-height: 580px;
-    font-size: 0.9rem;
+    max-height: 740px;
+    font-size: 0.92rem;
   }
   .t-entry .t-who { font-weight: 700; color: var(--t-c, var(--ink)); }
   .t-entry .room-tag {
     font-family: 'Silkscreen', sans-serif;
-    font-size: 0.56rem;
+    font-size: 0.54rem;
     padding: 1px 6px;
     border-radius: 5px;
     border: 1.5px solid var(--rt-c, var(--line));
@@ -479,7 +485,7 @@
   .t-entry.user .t-who { color: var(--brand); }
   .t-entry.sys { color: var(--ink-soft); font-style: italic; }
 
-  /* ---------- Idea board ---------- */
+  /* ---------- Idea board (bottom) ---------- */
   .board {
     background: var(--surface);
     border: 1px solid var(--line);
@@ -492,7 +498,7 @@
     gap: 16px;
     overflow-x: auto;
     padding: 18px 18px 10px;
-    min-height: 130px;
+    min-height: 150px;
     align-items: flex-start;
   }
   .board .empty {
@@ -502,7 +508,7 @@
     margin: 0 auto;
   }
   .note-card {
-    flex: 0 0 178px;
+    flex: 0 0 190px;
     background: var(--note);
     color: var(--note-ink);
     border-radius: 6px;
@@ -519,11 +525,12 @@
   .note-card .n-who {
     font-family: 'Silkscreen', sans-serif;
     font-weight: 700;
-    font-size: 0.62rem;
+    font-size: 0.6rem;
     color: var(--n-c);
     filter: brightness(0.8);
     margin-bottom: 4px;
   }
+  .note-card .n-room { opacity: 0.6; }
 
   /* ---------- Controls + interject ---------- */
   .dock {
@@ -582,11 +589,11 @@
     .bubble { opacity: 1; transform: scale(1); }
   }
 
-  @media (max-width: 880px) {
+  @media (max-width: 980px) {
     .main-grid { grid-template-columns: 1fr; }
-    .stage { min-height: 440px; }
+    .stage { min-height: 520px; }
     .transcript { min-height: 0; }
-    .t-list { max-height: 240px; }
+    .t-list { max-height: 260px; }
     .character .stance { display: none; }
     .app { padding-bottom: 150px; }
   }
@@ -595,13 +602,13 @@
 <div class="app">
   <header class="top">
     <div class="logo">BRAINSTORM STAGE<span class="dot">_</span></div>
-    <div class="tag">Dynamic rooms. Spawned agents. Final quorum. <em>(sample — dialogue is mocked)</em></div>
+    <div class="tag">Four connected rooms, each with a job. <em>(sample — dialogue is mocked)</em></div>
   </header>
 
   <!-- Setup -->
   <section class="setup" id="setup">
     <h1>What should the gang brainstorm?</h1>
-    <p class="sub">A fresh crew of agents is spawned for every session. They split into themed rooms, brainstorm in parallel, then converge on <strong>The Quorum</strong> in the middle to pitch, vote, and pick a winner.</p>
+    <p class="sub">Rooms follow the <strong>Disney Method</strong> — Walt Disney's own three-room process. Ideas are born in the <strong>Dreamer Room</strong> (no criticism allowed), get turned into a plan in the <strong>Realist Room</strong>, get stress-tested in the <strong>Critic Room</strong> (attack the idea, never the person), and everyone converges on <strong>The Quorum</strong> to vote. Agents roam freely — every room connects through the center.</p>
     <div class="topic-row">
       <input id="topicInput" type="text" value="a coffee shop that's only open at night" aria-label="Brainstorm topic">
       <button class="btn" id="startBtn">Spawn the session</button>
@@ -616,21 +623,27 @@
 
     <div class="main-grid">
       <div class="stage" id="stage" aria-hidden="true">
-        <div class="quorum-floor"></div>
-        <div class="wall-seg w1 wall-top"></div>
-        <div class="wall-seg w1 wall-bottom"></div>
-        <div class="wall-seg w2 wall-top"></div>
-        <div class="wall-seg w2 wall-bottom"></div>
-        <div class="room-label r0" id="label0"></div>
-        <div class="room-label rq" id="labelQ"></div>
-        <div class="room-label r1" id="label1"></div>
+        <div class="room-floor f0"></div>
+        <div class="room-floor f1"></div>
+        <div class="room-floor f2"></div>
+        <div class="room-floor fq"></div>
+        <div class="wall-seg wall-v top"></div>
+        <div class="wall-seg wall-v bottom"></div>
+        <div class="wall-seg wall-h left"></div>
+        <div class="wall-seg wall-h right"></div>
+        <div class="room-label p0" id="label0"></div>
+        <div class="room-label p1" id="label1"></div>
+        <div class="room-label p2" id="label2"></div>
+        <div class="room-label pq" id="label3"></div>
         <div class="action-chip c0" id="actionChip0"></div>
         <div class="action-chip c1" id="actionChip1"></div>
         <div class="action-chip c2" id="actionChip2"></div>
+        <div class="action-chip c3" id="actionChip3"></div>
         <div class="you-marker">YOU</div>
         <div class="bubble" id="bubble0"><div class="who" id="who0"></div><span id="text0"></span><span class="cur"></span><div class="tail"></div></div>
         <div class="bubble" id="bubble1"><div class="who" id="who1"></div><span id="text1"></span><span class="cur"></span><div class="tail"></div></div>
         <div class="bubble" id="bubble2"><div class="who" id="who2"></div><span id="text2"></span><span class="cur"></span><div class="tail"></div></div>
+        <div class="bubble" id="bubble3"><div class="who" id="who3"></div><span id="text3"></span><span class="cur"></span><div class="tail"></div></div>
         <div class="cast" id="cast"></div>
       </div>
 
@@ -665,44 +678,41 @@
 <div class="sr-only" aria-live="polite" id="live"></div>
 
 <script>
-  /* ============ Sprite templates ============
-     12x16 pixel grids, recolored per spawned agent. Letters map to a
-     palette; unknown chars render transparent. Frames: idle + overrides. */
-
+  /* ============ Sprite templates (recolored per spawned agent) ============ */
   const OUTLINE = '#241E38';
   const pick = arr => arr[Math.floor(Math.random() * arr.length)];
   const shuffle = arr => arr.slice().sort(() => Math.random() - 0.5);
 
   const TEMPLATES = {
-    cloud: { // huge cloud of hair + sparkles
+    cloud: {
       pal: { h: '#5B3FC4', H: '#7C5CE8', s: '#E8B88A', c: '#9D85F2', e: OUTLINE, m: '#B4543E', a: '#FFD8FE', k: OUTLINE, w: '#FFFFFF' },
       idle: ['.a...hh...a.','..hhHHHHhh..','.hHHHHHHHHh.','.hHssssssHh.','.hHewssweHh.','.hHssssssHh.','..ssmmssss..','...ssssss...','..hcccccch..','.sccccccccs.','.sccccccccs.','..cccccccc..','..cccccccc..','...cc..cc...','..kk....kk..','............'],
       blink: { 4: '.hHkssskkHh.' },
       talk:  { 6: '..ssmmmmss..', 7: '...smmmms...' },
       ko:    { 4: '.hHkssskkHh.', 6: '..ssmmmmss..' },
     },
-    flat: { // flat hair, raised eyebrow, arms crossed
+    flat: {
       pal: { h: '#4A4238', s: '#EFCFAF', c: '#64748B', e: OUTLINE, m: OUTLINE, k: OUTLINE, w: '#FFFFFF' },
       idle: ['............','..hhhhhhhh..','..hhhhhhhh..','..kkssssss..','..sesskkss..','..sesssess..','..ssssssss..','..ssmmmmss..','...ssssss...','..cccccccc..','.ccsssssscc.','.ccsssssscc.','..cccccccc..','...cc..cc...','..kk....kk..','............'],
       blink: { 5: '..skssskss..' },
       talk:  { 7: '..ssmmmsss..', 8: '...smmsss...' },
       ko:    { 5: '..skssskss..', 7: '..smmmmmss..' },
     },
-    cap: { // work cap + wrench
+    cap: {
       pal: { a: '#E09A2F', A: '#B87716', s: '#A9714B', c: '#3E5C76', e: OUTLINE, m: OUTLINE, g: '#9AA3AE', k: OUTLINE, w: '#FFFFFF' },
       idle: ['...aaaaaa...','..aaaaaaaa..','.AAAAAAAAAA.','..ssssssss..','..sesssses..','..ssssssss..','..ssssmmss..','...ssssss...','..ccccccccg.','.sccccccccg.','.sccccccccg.','..cccccccc..','..cccccccc..','...cc..cc...','..kk....kk..','............'],
       blink: { 4: '..skssssks..' },
       talk:  { 6: '..sssmmmss..', 7: '...ssmmss...' },
       ko:    { 4: '..skssssks..', 6: '..ssmmmmss..' },
     },
-    buns: { // hair buns, hand raised
+    buns: {
       pal: { h: '#2A2135', s: '#7A4A32', c: '#E86A8A', e: OUTLINE, m: '#4A1D12', k: OUTLINE, w: '#FFFFFF' },
       idle: ['.hh......hh.','.hhhhhhhhhh.','..hhhhhhhh..','..ssssssss..','..sewssews..','..ssssssss..','..ssmmmmss..','...ssssss.s.','..ccccccccs.','.scccccccc..','.scccccccc..','..cccccccc..','..cccccccc..','...cc..cc...','..kk....kk..','............'],
       blink: { 4: '..skssssks..' },
       talk:  { 6: '..smmmmmms..', 7: '...smmmms.s.' },
       ko:    { 4: '..skssssks..', 6: '..ssmmmmss..', 7: '...ssssss...' },
     },
-    antenna: { // not entirely human — antenna, mismatched eyes, carries a die
+    antenna: {
       pal: { s: '#3ECDBA', a: '#FFD166', c: '#2B6E80', e: OUTLINE, m: OUTLINE, k: OUTLINE, w: '#FFFFFF' },
       idle: ['.....aa.....','......a.....','..ssssssss..','.ssssssssss.','.sseesssess.','.ssssssssss.','..smsmsmss..','..ssssssss..','..cccccccc..','.sccccccccww','..ccccccccww','..cccccccc..','..cccccccc..','...ss..ss...','..kk....kk..','............'],
       blink: { 4: '.sskkssskss.' },
@@ -740,23 +750,15 @@
     return { pal, idle: tpl.idle, blink: tpl.blink, talk: tpl.talk, ko: tpl.ko };
   }
 
-  /* ============ Spawn a cast ============ */
   function genCast() {
     const stances = ['dreamer', 'skeptic', 'pragmatist', 'advocate', 'wildcard'];
-    if (Math.random() < 0.5) stances.push(pick(stances)); // sometimes a 6th agent
+    if (Math.random() < 0.5) stances.push(pick(stances));
     const usedNames = new Set();
     const colors = shuffle(UI_COLORS);
     return stances.map((st, i) => {
       const name = pick(STANCE_DEF[st].names.filter(n => !usedNames.has(n)));
       usedNames.add(name);
-      return {
-        id: name.toLowerCase(),
-        name,
-        stance: st,
-        label: STANCE_DEF[st].label,
-        color: colors[i % colors.length],
-        sprite: genSprite(st),
-      };
+      return { id: name.toLowerCase(), name, stance: st, label: STANCE_DEF[st].label, color: colors[i % colors.length], sprite: genSprite(st) };
     });
   }
 
@@ -803,6 +805,7 @@
   const koSet = new Set();
   let ideas = 0, phase = 'setup', paused = false;
   let ROOMS = [], CHANNELS = [];
+  const SESSION = { topic: '' };
 
   function makeCharacter(agent, prefix, i) {
     const el = document.createElement('div');
@@ -820,8 +823,7 @@
   function renderPreview() {
     const target = $('castPreview');
     target.innerHTML = '';
-    const sample = genCast();
-    sample.forEach((agent, i) => {
+    genCast().forEach((agent, i) => {
       const el = makeCharacter(agent, 'pv-', i);
       target.appendChild(el);
       animators['pv-' + agent.id] = makeAnimator($('pv-' + agent.id + '-cv'), agent.sprite);
@@ -830,25 +832,32 @@
   renderPreview();
   $('rerollBtn').addEventListener('click', renderPreview);
 
-  /* ============ Room geometry ============ */
-  const CHAR_W = 76, CHAR_H = 108, HEADROOM = 150;
+  /* ============ Room geometry: 2x2 quadrants, connected via center crossing ============ */
+  const CHAR_W = 76, CHAR_H = 100, TOP_HEADROOM = 140;
 
   function roomSize() { const s = $('stage'); return { w: s.clientWidth, h: s.clientHeight }; }
-  function wall1X() { return roomSize().w * 0.34; }
-  function wall2X() { return roomSize().w * 0.66; }
+  function midX() { return roomSize().w * 0.5; }
+  function midY() { return roomSize().h * 0.52; }
 
   function zoneBounds(roomIdx) {
     const { w, h } = roomSize();
-    let x0 = 8, x1 = w - CHAR_W - 8;
-    if (roomIdx === 0) x1 = wall1X() - CHAR_W - 10;
-    else if (roomIdx === 1) x0 = wall2X() + 10;
-    else if (roomIdx === 'q') { x0 = wall1X() + 10; x1 = wall2X() - CHAR_W - 10; }
-    return { x0, x1, y0: HEADROOM, y1: h - CHAR_H - 34 };
+    const mx = midX(), my = midY();
+    let x0 = 8, x1 = w - CHAR_W - 8, y0 = TOP_HEADROOM, y1 = h - CHAR_H - 34;
+    if (roomIdx === 0) { x1 = mx - CHAR_W - 10; y1 = my - CHAR_H - 14; }
+    else if (roomIdx === 1) { x0 = mx + 10; y1 = my - CHAR_H - 14; }
+    else if (roomIdx === 2) { x1 = mx - CHAR_W - 10; y0 = my + 44; }
+    else if (roomIdx === 'q') { x0 = mx + 10; y0 = my + 44; }
+    return { x0, x1, y0, y1 };
   }
 
   function clampPos(x, y, roomIdx) {
     const z = zoneBounds(roomIdx);
     return [Math.max(z.x0, Math.min(x, z.x1)), Math.max(z.y0, Math.min(y, z.y1))];
+  }
+
+  function randSpot(roomIdx) {
+    const z = zoneBounds(roomIdx);
+    return [z.x0 + Math.random() * (z.x1 - z.x0), z.y0 + Math.random() * (z.y1 - z.y0)];
   }
 
   function placeChar(id, x, y) {
@@ -877,33 +886,31 @@
     setTimeout(() => { el.classList.remove('walking'); cb && cb(); }, dur + 30);
   }
 
-  // Cross rooms through the doorway gaps in the walls
+  // All rooms connect through the central crossing
   function hopRoom(id, newRoom, tx, ty, cb) {
-    const { h } = roomSize();
-    const midY = h / 2 - CHAR_H / 2;
-    const from = charRoom[id];
     charRoom[id] = null;
-    const doors = [];
-    const sideOf = r => (r === 0 ? 0 : r === 1 ? 2 : 1); // left, quorum, right
-    let a = sideOf(from ?? 'q'), b = sideOf(newRoom);
-    if (a > b) { if (a === 2) doors.push(wall2X()); if (b === 0) doors.push(wall1X()); }
-    else { if (a === 0) doors.push(wall1X()); if (b === 2) doors.push(wall2X()); }
-    const step = () => {
-      if (doors.length) moveTo(id, doors.shift() - CHAR_W / 2, midY, step);
-      else { charRoom[id] = newRoom; moveTo(id, tx, ty, cb); }
-    };
-    step();
+    moveTo(id, midX() - CHAR_W / 2, midY() - CHAR_H / 2, () => {
+      charRoom[id] = newRoom;
+      moveTo(id, tx, ty, cb);
+    });
   }
 
   function startWander() {
     setInterval(() => {
-      if (reduced || phase === 'setup' || !$('ch-' + ORDER[0])) return;
+      if (reduced || phase === 'setup' || phase === 'done' || !ORDER.length || !$('ch-' + ORDER[0])) return;
       ORDER.forEach(id => {
         const el = $('ch-' + id);
         if (!el || koSet.has(id)) return;
         if (el.classList.contains('speaking') || el.classList.contains('thinking') || el.classList.contains('walking')) return;
         if (CHANNELS.some(ch => ch.bubbleSpeaker === id && $(ch.bubbleId).classList.contains('show'))) return;
-        if (Math.random() < 0.2) {
+        const r = Math.random();
+        if (r < 0.05 && phase === 'rooms') {
+          // free roaming: stroll to a neighboring room through the center
+          const options = [0, 1, 2].filter(x => x !== charRoom[id]);
+          const dest = pick(options);
+          const [tx, ty] = randSpot(dest);
+          hopRoom(id, dest, tx, ty);
+        } else if (r < 0.24) {
           const c = roomChars[id];
           moveTo(id, c.x + (Math.random() * 200 - 100), c.y + (Math.random() * 150 - 75));
         }
@@ -911,7 +918,7 @@
     }, 1600);
   }
 
-  /* ============ Dialogue generation (mocked; stance-templated) ============ */
+  /* ============ Dialogue generation (mocked; stance + room templated) ============ */
   const STOPWORDS = new Set(['a','an','the','that','this','for','with','and','or','of','to','in','on','at','is','are','only','open','its',"it's",'my','our','your']);
   function keywords(topic) {
     const kw = topic.toLowerCase().replace(/[^a-z0-9\s'-]/g, '').split(/\s+/).filter(w => w.length > 2 && !STOPWORDS.has(w));
@@ -924,43 +931,59 @@
     verb: ['celebrates', 'gamifies', 'crowdsources', 'reinvents', 'flips the script on', 'builds a cult following around'],
     aud: ['regulars', 'night owls', 'first-timers', 'strangers', 'locals', 'the curious'],
   };
+  const PLAN = {
+    step: ['a landing page and twenty hand-picked regulars', 'one prototype night, invite-only', 'a waitlist and a hand-drawn logo', 'borrowing a venue for one evening'],
+    cost: ['almost nothing', 'one weekend and some paint', 'less than a bad marketing campaign', 'pocket change, honestly'],
+    metric: ['twenty people come back twice', 'ten strangers tell a friend', 'the waitlist fills itself', 'someone cries (happy tears)'],
+  };
+
   function genSeed(kws) {
     return `a ${pick(SEED.adj)} ${pick(SEED.format)} that ${pick(SEED.verb)} ${pick(kws)} for ${pick(SEED.aud)}`;
   }
 
   const T = {
-    opener: {
-      dreamer:    ['Ooh — {topic}?! Welcome to {room}. No judging, only dreaming. GO.', 'Okay {room}, rule one: for the next ten minutes every idea about {topic} is a great idea.'],
-      skeptic:    ['{room}. Where ideas about {topic} come to get stress-tested. Who wants to go first?', 'Hmm. {topic}. Fine — {room} is open, bring me something I can’t poke a hole in.'],
-      pragmatist: ['Welcome to {room}. Scope: {topic}. Budget: tiny. Impress me anyway.', 'Okay {room}, concretely: {topic}. What ships in two weeks?'],
-      advocate:   ['{room} is open! First — picture the actual person who needs {topic}. Hold them in mind.', 'Before we brainstorm {topic}, {room}: think of one real person it would delight.'],
-      wildcard:   ['I hereby declare {room} a normal-free zone. {topic}, but make it weird.', '{room}! {topic}! My antenna is ALREADY tingling.'],
+    dreamOpener: {
+      dreamer:    ['Welcome to {room}! House rule: NO criticism in here — that’s what the Critic Room is for. {topic}. GO.', 'Ooh — {topic}?! {room} is open and every idea is legal. Dream first, details later!'],
+      advocate:   ['{room} is open! Before anything — picture the one person who needs {topic} most. Now dream FOR them.'],
+      pragmatist: ['Fine. {room}. I’ll hold my spreadsheet until we’re next door. {topic} — dream away.'],
+      skeptic:    ['{room}. I’m contractually forbidden from criticizing in here. This is… deeply uncomfortable. Proceed.'],
+      wildcard:   ['{room}! Where the walls are fake and the ideas are TOO REAL. {topic}, but weirder!'],
     },
     idea: {
       dreamer:    ['What if we tried {seed}?! I can SEE it — tell me you can’t see it!', 'Hear me out: {seed}. Goosebumps, right?!'],
-      skeptic:    ['Fine, here’s one I’d actually defend: {seed}. Unsexy, but it works.', 'Against my better judgment: {seed}. At least it’s falsifiable.'],
-      pragmatist: ['Okay, concretely: {seed}. Cheap to test, easy to kill if it flops.', 'Small bet: {seed}. If twenty people show up twice, we double down.'],
-      advocate:   ['Picture a first-timer discovering {seed}. They’d tell a friend by morning.', 'For the person who almost didn’t come: {seed}. That’s who it’s for.'],
-      wildcard:   ['Total left turn: {seed}. The weirdness IS the marketing.', 'Splicing two bad ideas into a great one: {seed}. You’re welcome.'],
-    },
-    challenge: {
-      skeptic:    ['Hmm. {prevName}, walk me through it — who shows up for that TWICE? Numbers, please.', '{prevName}, that’s adorable. Now defend it against a rainy Tuesday in February.'],
-      pragmatist: ['{prevName}, love the energy — but what does v1 cost? Scope it or drop it.', 'Before anyone claps: {prevName}, who runs this on day 30 when the novelty’s gone?'],
-    },
-    build: {
-      dreamer:    ['YES and — stack {prevName}’s thing with {seed}! One idea wearing two hats!'],
-      advocate:   ['Building on {prevName}: make it personal. Remember their name, their order, their thing. That’s the retention.'],
-      wildcard:   ['Take {prevName}’s idea, splice in {seed}. Chaos, but organized chaos.'],
-      pragmatist: ['{prevName}’s idea, minus the expensive half, plus a waiting list. Now it ships.'],
-      skeptic:    ['{prevName}’s idea survives if — and only if — we cut everything that needs a permit.'],
+      skeptic:    ['Since I can’t criticize in here: {seed}. There. I contributed.', 'Against my better judgment: {seed}.'],
+      pragmatist: ['Okay: {seed}. Small, testable, killable. My favorite kind.', 'Small bet: {seed}.'],
+      advocate:   ['Picture a first-timer discovering {seed}. They’d tell a friend by morning.', 'For the person who almost didn’t come: {seed}.'],
+      wildcard:   ['Total left turn: {seed}. The weirdness IS the marketing.', 'Splicing two bad ideas into one great one: {seed}!'],
     },
     reaction: {
-      dreamer:    ['I’m obsessed. Somebody write that down before it escapes!'],
-      skeptic:    ['Well. That’s… not the worst thing I’ve heard today. High praise.'],
-      pragmatist: ['Logged. Moving on before we get carried away.'],
-      advocate:   ['That would genuinely make someone’s whole day. Keep it.'],
-      wildcard:   ['My antenna is tingling. That’s either a great sign or the wifi.'],
+      dreamer:    ['I’m obsessed. Somebody pin that before it escapes!'],
+      skeptic:    ['I’m saving my objections for the Critic Room. They’re multiplying.'],
+      pragmatist: ['Pinned. Keep them coming.'],
+      advocate:   ['That would make someone’s whole day. Keep it.'],
+      wildcard:   ['My antenna is tingling. That’s a good sign. Usually.'],
     },
+    realistWork: {
+      pragmatist: ['Right — {room}. “{idea}.” Concretely: week one is {step}. Costs {cost}.', 'Storyboard time. “{idea}”: start with {step}, spend {cost}, done by Friday.'],
+      advocate:   ['And the human bit of “{idea}”: greet people by name from day one. That part is free.'],
+      dreamer:    ['Building it out — “{idea}” plus a secret opening night?! Okay okay, adding it to the plan!'],
+      wildcard:   ['Logistics, but chaotic: for “{idea}”, we launch when {metric}. That’s the plan. It’s foolproof.'],
+      skeptic:    ['I’m only in {room} to make sure “{idea}” has an exit plan. It does now.'],
+    },
+    realistPlan: ['📋 The plan for “{idea}”: {step}; budget: {cost}; success = {metric}.'],
+    criticWork: {
+      skeptic:    ['{room}. “{idea}”. I attack the idea, not the person — so, idea: who shows up for you TWICE? Defend yourself.', 'Welcome to {room}, “{idea}”. Rainy Tuesday in February. Nobody came. What now?'],
+      pragmatist: ['My critique of “{idea}”: the second month. Everything dies in the second month. Convince me it won’t.'],
+    },
+    defend: {
+      dreamer:    ['Because “{idea}” isn’t a product, it’s a RITUAL. People come back for rituals!'],
+      advocate:   ['Because someone will feel seen by “{idea}” — and people return to where they felt seen.'],
+      wildcard:   ['Counterpoint: {seed}. Wait, that’s a new idea. Both! BOTH.'],
+      pragmatist: ['Because v1 of “{idea}” is so cheap that surviving is the only requirement. It survives.'],
+      skeptic:    ['I hate that I’m defending this, but “{idea}” is too small to fail. Next question.'],
+    },
+    verdictPass: ['Hmm. Annoyingly… “{idea}” holds up. It goes to the Quorum with my grudging respect.'],
+    verdictKo:   ['And THAT is why we stress-test in {room} and not in production. …{name}? Oh no. Too much reality.'],
     steerAck: {
       dreamer:    ['Ooh, the boss speaks! “{quote}” — folding that in, this changes everything (in a good way).'],
       skeptic:    ['Hmm. “{quote}” — fine, that’s fair. Here’s the version I’d actually defend…'],
@@ -969,83 +992,105 @@
       wildcard:   ['“{quote}”?? Total left turn unlocked. Splicing it into everything.'],
     },
     koReact: {
-      dreamer:    ['{name}’s down! Write that down — “ideas so powerful they’re a safety hazard.” That’s the brand now.'],
+      dreamer:    ['{name}’s down! Pin that — “ideas so powerful they’re a safety hazard.”'],
       skeptic:    ['Well. {name} is out. Statistically, that improves our average.'],
-      pragmatist: ['Okay, {name} is down. Noted, logged, moving on before anyone else gets ideas.'],
-      advocate:   ['{name}!! Someone check on them — okay, they’re doing the cartoon swirly eyes, they’re fine. Where were we?'],
-      wildcard:   ['{name} has left the physical plane. More room for the rest of us!'],
+      pragmatist: ['Okay, {name} is down. Noted, logged, moving on.'],
+      advocate:   ['{name}!! Someone check on— okay, cartoon swirly eyes, they’re fine. Where were we?'],
+      wildcard:   ['{name} has left the physical plane. More floor for the rest of us!'],
     },
     pitch: {
-      dreamer:    ['{room} brought the magic. Our best: {best}. You’re welcome, everyone.'],
-      skeptic:    ['{room} report. One idea survived me: {best}. That should tell you something.'],
-      pragmatist: ['{room} report: {best}. Under budget. Naturally.'],
-      advocate:   ['{room}’s pick: {best}. Because someone out there needs exactly that.'],
-      wildcard:   ['{room} sends its champion: {best}. It chose itself, honestly.'],
+      dreamer:    ['From the Realist Room, with an actual plan attached: {best}. Dreams DO ship!'],
+      skeptic:    ['This one survived my room: {best}. That should tell you everything.'],
+      pragmatist: ['Pitch one: {best} — planned, budgeted, and boring enough to actually work.'],
+      advocate:   ['Our pitch: {best}. Because somebody out there needs exactly that.'],
+      wildcard:   ['Presenting the gauntlet survivor: {best}. It cannot be killed. We checked.'],
     },
     quorumReact: {
-      dreamer:    ['Both rooms COOKED. Can we do both? Is both an option?'],
-      skeptic:    ['One of these is fundable and one is a fever dream. Vote accordingly.'],
-      pragmatist: ['Two solid pitches. Pick one, fold the other into phase two. Vote.'],
-      advocate:   ['Whichever wins — keep the human part of the other one. Okay, vote!'],
-      wildcard:   ['I vote we merge them into one giant idea. No? Fine. VOTE.'],
+      dreamer:    ['Both survived the rooms. Can we do both? Is both an option?'],
+      skeptic:    ['One has a plan, one has scar tissue. Both are more than most ideas get. Vote.'],
+      pragmatist: ['Two finalists, both roadworthy. Pick one, fold the other into phase two. Vote.'],
+      advocate:   ['Whichever wins — keep the human part of the loser. Okay. Vote!'],
+      wildcard:   ['I vote we staple them together. No? Democracy it is. VOTE.'],
     },
-    closer: ['Quorum verdict on {topic}: “{winner}” takes it, {votes}. The runner-up folds into phase two. Two rooms, one plan — good session, everyone.'],
+    closer: ['Quorum verdict on {topic}: “{winner}” takes it, {votes}. The runner-up folds into phase two. Dreamed, planned, stress-tested, decided — good session, everyone.'],
   };
 
-  const ROOM_NAME_POOLS = [
-    ['The Dream Lab', 'Blue Sky Room', 'The Launchpad', 'The Moonshot Suite'],
-    ['The Reality Check', 'The Workbench', 'The Proving Ground', 'The Fine Print'],
+  const ROOM_DEFS = [
+    { idx: 0,  purpose: 'DIVERGE',     titles: ['The Dreamer Room', 'The Dream Den', 'Blue Sky Room'] },
+    { idx: 1,  purpose: 'MAKE A PLAN', titles: ['The Realist Room', 'The Workshop', 'The Drafting Table'] },
+    { idx: 2,  purpose: 'STRESS-TEST', titles: ['The Critic Room', 'The Gauntlet', 'The Reality Check'] },
+    { idx: 'q', purpose: 'DECIDE',     titles: ['The Quorum'] },
   ];
+  const ROOM_COLORS = { 0: '#7C5CE8', 1: '#4C9BE0', 2: '#E86A8A', q: '#E0B93D' };
 
-  function fill(tpl, slots) {
-    return tpl.replace(/\{(\w+)\}/g, (_, k) => slots[k] ?? '');
-  }
-
+  function fill(tpl, slots) { return tpl.replace(/\{(\w+)\}/g, (_, k) => slots[k] ?? ''); }
   function stanceOf(id) { return PERSONAS[id].stance; }
+  function tFor(bank, id) { const b = bank[stanceOf(id)]; return pick(b || Object.values(bank).flat()); }
 
-  function genRoomScript(room, topic, kws) {
-    const ids = room.cast;
-    const turns = [];
-    const lead = ids.find(id => ['dreamer', 'pragmatist'].includes(stanceOf(id))) || ids[0];
-    const slots = { topic, room: room.title };
-    turns.push({ s: lead, k: 'reaction', txt: fill(pick(T.opener[stanceOf(lead)]), slots) });
+  /* ============ Session script: dream → split → realist/critic in parallel → quorum ============ */
+  function buildSession(topic) {
+    const kws = keywords(topic);
+    const idea1 = genSeed(kws), idea2 = genSeed(kws);
+    const short = s => s.length > 64 ? s.slice(0, 61) + '…' : s;
 
-    let prev = lead, prevIdeaBy = null, lastMove = 'opener';
-    const nTurns = 5 + Math.floor(Math.random() * 3);
-    for (let i = 0; i < nTurns; i++) {
-      let s = pick(ids.filter(id => id !== prev));
-      let move;
-      if (lastMove === 'idea') {
-        const challenger = ids.find(id => id !== prev && T.challenge[stanceOf(id)]);
-        move = challenger && Math.random() < 0.45 ? 'challenge' : (Math.random() < 0.5 ? 'build' : 'reaction');
-        if (move === 'challenge') s = challenger;
-      } else {
-        move = Math.random() < 0.7 ? 'idea' : 'reaction';
-      }
-      const st = stanceOf(s);
-      const seed = genSeed(kws);
-      const sl = { ...slots, seed, prevName: prevIdeaBy ? PERSONAS[prevIdeaBy].name : PERSONAS[prev].name };
-      if (move === 'idea') {
-        turns.push({ s, k: 'idea', txt: fill(pick(T.idea[st]), sl) });
-        if (!room.best) room.best = seed;
-        prevIdeaBy = s;
-      } else if (move === 'challenge') {
-        const turn = { s, k: 'question', to: prevIdeaBy, txt: fill(pick(T.challenge[st]), sl) };
-        if (prevIdeaBy && stanceOf(prevIdeaBy) === 'wildcard' && Math.random() < 0.5) {
-          turn.koTarget = prevIdeaBy;
-          turn.txt += ` …${PERSONAS[prevIdeaBy].name}? Oh no. Too much reality.`;
-        }
-        turns.push(turn);
-      } else if (move === 'build' && T.build[st]) {
-        turns.push({ s, k: 'idea', to: prevIdeaBy || undefined, txt: fill(pick(T.build[st]), sl) });
-        prevIdeaBy = s;
-      } else {
-        turns.push({ s, k: 'reaction', txt: fill(pick(T.reaction[st]), sl) });
-      }
-      lastMove = move === 'build' ? 'idea' : move;
-      prev = s;
+    const byStance = st => ORDER.filter(id => stanceOf(id) === st);
+    const author1 = byStance('dreamer')[0] || ORDER[0];
+    const author2 = byStance('wildcard')[0] || byStance('advocate')[0] || ORDER.find(id => id !== author1);
+    const realist = byStance('pragmatist')[0] || ORDER.find(id => ![author1, author2].includes(id));
+    const critic = byStance('skeptic')[0] || ORDER.find(id => ![author1, author2, realist].includes(id));
+    const rest = ORDER.filter(id => ![author1, author2, realist, critic].includes(id));
+
+    // who goes where after the dream phase
+    const realistCrew = [realist, author1, ...(rest[0] ? [rest[0]] : [])];
+    const criticCrew = [critic, author2];
+    const stayDreaming = rest.slice(1);
+
+    const R = i => ROOMS.find(r => r.idx === i);
+    const slots0 = { topic, room: R(0).title };
+
+    // --- Dream phase (everyone in room 0) ---
+    const opener = pick(ORDER.filter(id => id !== author1)) || author1;
+    const reactor1 = pick(ORDER.filter(id => ![author1, author2].includes(id)));
+    const dream = [
+      { s: opener, k: 'reaction', txt: fill(tFor(T.dreamOpener, opener), slots0) },
+      { s: author1, k: 'idea', txt: fill(tFor(T.idea, author1), { seed: idea1 }) },
+      { s: reactor1, k: 'reaction', txt: fill(tFor(T.reaction, reactor1), {}) },
+      { s: author2, k: 'idea', txt: fill(tFor(T.idea, author2), { seed: idea2 }) },
+      {
+        sys: `🧭 Time to work: “${short(idea1)}” heads to ${R(1).title} for a plan; “${short(idea2)}” faces ${R(2).title}.`,
+        moves: [
+          ...realistCrew.map(who => ({ who, room: 1 })),
+          ...criticCrew.map(who => ({ who, room: 2 })),
+        ],
+        start: [1, 2],
+      },
+    ];
+    if (stayDreaming.length >= 2) {
+      const extra = genSeed(kws);
+      dream.push({ s: stayDreaming[0], k: 'idea', txt: fill(tFor(T.idea, stayDreaming[0]), { seed: extra }) });
+      dream.push({ s: stayDreaming[1], k: 'reaction', txt: fill(tFor(T.reaction, stayDreaming[1]), {}) });
     }
-    return turns;
+
+    // --- Realist phase (room 1): turn idea1 into a plan ---
+    const planStep = pick(PLAN.step), planCost = pick(PLAN.cost), planMetric = pick(PLAN.metric);
+    const real = [
+      { s: realist, k: 'reaction', txt: fill(tFor(T.realistWork, realist), { room: R(1).title, idea: short(idea1), step: planStep, cost: planCost, metric: planMetric }) },
+      { s: author1, k: 'reaction', txt: fill(tFor(T.realistWork, author1), { room: R(1).title, idea: short(idea1), step: planStep, cost: planCost, metric: planMetric }) },
+      { s: realist, k: 'idea', txt: fill(T.realistPlan[0], { idea: short(idea1), step: planStep, cost: planCost, metric: planMetric }) },
+    ];
+    if (realistCrew[2]) real.splice(2, 0, { s: realistCrew[2], k: 'reaction', txt: fill(tFor(T.realistWork, realistCrew[2]), { room: R(1).title, idea: short(idea1), step: planStep, cost: planCost, metric: planMetric }) });
+
+    // --- Critic phase (room 2): stress-test idea2 ---
+    const koHappens = Math.random() < 0.5;
+    const crit = [
+      { s: critic, k: 'question', to: author2, txt: fill(tFor(T.criticWork, critic), { room: R(2).title, idea: short(idea2) }) },
+      { s: author2, k: 'reaction', to: critic, txt: fill(tFor(T.defend, author2), { idea: short(idea2), seed: genSeed(kws) }) },
+      koHappens
+        ? { s: critic, k: 'reaction', koTarget: author2, txt: fill(T.verdictKo[0], { room: R(2).title, name: PERSONAS[author2].name }) }
+        : { s: critic, k: 'reaction', txt: fill(T.verdictPass[0], { idea: short(idea2) }) },
+    ];
+
+    return { idea1, idea2, short, dream, real, crit, delegates: { d1: realist, d2: critic } };
   }
 
   /* ============ Channels ============ */
@@ -1053,7 +1098,7 @@
     CHANNELS = ROOMS.map((room, i) => ({
       idx: room.idx, room,
       bubbleId: 'bubble' + i, whoId: 'who' + i, textId: 'text' + i, chipId: 'actionChip' + i,
-      script: [], pos: 0, typing: false, done: false, waiting: false, seq: 0, bubbleSpeaker: null, queue: [],
+      script: [], pos: 0, typing: false, done: false, waiting: false, seq: 0, bubbleSpeaker: null, queue: [], started: false,
     }));
   }
 
@@ -1064,7 +1109,7 @@
 
   function channelOf(personaId) {
     const r = charRoom[personaId];
-    return CHANNELS.find(ch => ch.idx === r) || CHANNELS[CHANNELS.length - 1];
+    return CHANNELS.find(ch => ch.idx === r) || CHANNELS[0];
   }
 
   /* ---------- KO / revive (all cartoon, nobody stays down) ---------- */
@@ -1103,13 +1148,13 @@
   function koReactTurn(victimId) {
     const roommate = ORDER.find(id => id !== victimId && !koSet.has(id) && charRoom[id] === charRoom[victimId]);
     const who = roommate || alivePersona();
-    return { s: who, k: 'reaction', txt: fill(pick(T.koReact[stanceOf(who)]), { name: PERSONAS[victimId].name }) };
+    return { s: who, k: 'reaction', txt: fill(tFor(T.koReact, who), { name: PERSONAS[victimId].name }) };
   }
 
   function ackTurn(text, mention) {
     const quote = text.length > 60 ? text.slice(0, 57) + '…' : text;
     const who = alivePersona(mention || pick(ORDER));
-    return { s: who, k: 'reaction', to: 'you', txt: fill(pick(T.steerAck[stanceOf(who)]), { quote }) };
+    return { s: who, k: 'reaction', to: 'you', txt: fill(tFor(T.steerAck, who), { quote }) };
   }
 
   /* ---------- Turn machinery ---------- */
@@ -1126,7 +1171,7 @@
     const c = roomChars[speakerId];
     const { w, h } = roomSize();
     const cx = c.x + CHAR_W / 2;
-    const bw = Math.min(290, w * 0.4);
+    const bw = Math.min(280, w * 0.42);
     const left = Math.max(10, Math.min(cx - bw / 2, w - bw - 10));
     b.style.left = left + 'px';
     b.style.width = bw + 'px';
@@ -1160,7 +1205,20 @@
       else if (phase === 'quorum') phase = 'done';
       return;
     }
-    if (turn.sys) { addSystem(turn.sys); schedule(ch, 900); return; }
+    if (turn.sys) {
+      addSystem(turn.sys);
+      (turn.moves || []).forEach((mv, i) => {
+        setTimeout(() => showChip(CHANNELS.find(c => c.idx === mv.room) || ch, PERSONAS[mv.who], `move_to(${ROOMS.find(r => r.idx === mv.room).title})`), i * 350);
+        const [tx, ty] = randSpot(mv.room);
+        hopRoom(mv.who, mv.room, tx, ty);
+      });
+      (turn.start || []).forEach(i => {
+        const target = CHANNELS.find(c => c.idx === i);
+        if (target && !target.started) { target.started = true; schedule(target, 2600); }
+      });
+      schedule(ch, 1600);
+      return;
+    }
     const p = PERSONAS[turn.s];
     const wasKo = koSet.has(turn.s);
     if (wasKo) reviveChar(turn.s);
@@ -1171,6 +1229,14 @@
     const seq = ++ch.seq;
     setSpeakerState(turn.s, 'thinking');
     const go = () => { if (seq === ch.seq && phase !== 'done') speak(ch, turn, p); };
+
+    // a free-roaming agent walks back to the room where their conversation lives
+    if (ch.idx !== undefined && charRoom[turn.s] !== ch.idx && !turn.to) {
+      showChip(ch, p, `move_to(${ch.room.title})`);
+      const [tx, ty] = randSpot(ch.idx);
+      hopRoom(turn.s, ch.idx, tx, ty, () => setTimeout(go, 250));
+      return;
+    }
 
     let dest = null;
     if (turn.to === 'you') {
@@ -1226,9 +1292,9 @@
     setSpeakerState(turn.s, null);
     addTranscript(ch, p.name, turn.txt, p.color);
     $('live').textContent = p.name + ': ' + turn.txt;
-    if (turn.k === 'idea') addIdea(turn, p);
+    if (turn.k === 'idea') addIdea(ch, turn, p);
     if (turn.koTarget) setTimeout(() => {
-      if (koChar(turn.koTarget, `felled by ${p.name}'s point`)) {
+      if (koChar(turn.koTarget, `felled by ${p.name}'s critique`)) {
         channelOf(turn.koTarget).queue.push(koReactTurn(turn.koTarget));
       }
     }, 400);
@@ -1241,7 +1307,11 @@
   /* ---------- Quorum ---------- */
   function maybeQuorum() {
     if (phase !== 'rooms') return;
-    if (CHANNELS.filter(ch => ch.idx !== 'q').every(ch => ch.done)) startQuorum();
+    if (CHANNELS.filter(ch => ch.idx !== 'q').every(ch => ch.done || !ch.started)) {
+      if (CHANNELS.filter(ch => ch.idx !== 'q').some(ch => ch.started && !ch.done)) return;
+      if (!CHANNELS[0].done) return;
+      startQuorum();
+    }
   }
 
   function startQuorum() {
@@ -1253,50 +1323,41 @@
       $(ch.bubbleId).classList.remove('show');
     });
     const qRoom = ROOMS.find(r => r.idx === 'q');
-    addSystem(`🏛 ${qRoom.title} convenes — everyone to the middle.`);
-    const z = zoneBounds('q');
+    addSystem(`🏛 ${qRoom.title} convenes — everyone through the center.`);
     ORDER.forEach((id, i) => {
       if (koSet.has(id)) reviveChar(id);
       setSpeakerState(id, null);
+      const z = zoneBounds('q');
       const fx = (i + 0.5) / ORDER.length;
-      hopRoom(id, 'q', z.x0 + fx * (z.x1 - z.x0) - CHAR_W / 2 + 20, z.y0 + (i % 2 ? 0.55 : 0.2) * (z.y1 - z.y0));
+      hopRoom(id, 'q', z.x0 + fx * (z.x1 - z.x0) - 20, z.y0 + (i % 2 ? 0.6 : 0.15) * (z.y1 - z.y0));
     });
+
+    const S = SESSION.build;
+    const d1 = alivePersona(S.delegates.d1), d2 = alivePersona(S.delegates.d2);
+    const others = ORDER.filter(id => id !== d1 && id !== d2);
+    const reactor = others.length ? pick(others) : d1;
+
+    let v1 = 0, v2 = 0;
+    ORDER.forEach(() => (Math.random() < 0.5 ? v1++ : v2++));
+    if (v1 === v2) v1++;
+    const winner = v1 > v2 ? S.short(S.idea1) : S.short(S.idea2);
+    const votes = `${Math.max(v1, v2)}–${Math.min(v1, v2)}`;
 
     const qc = CHANNELS.find(ch => ch.idx === 'q');
-    const r0 = ROOMS[0], r1 = ROOMS[1];
-    const delegate = room => room.cast.find(id => !koSet.has(id)) || room.cast[0];
-    const d0 = delegate(r0), d1 = delegate(r1);
-    const others = ORDER.filter(id => id !== d0 && id !== d1);
-    const reactor = others.length ? pick(others) : d0;
-
-    // vote: each agent leans toward their home room's pitch
-    let v0 = 0, v1 = 0;
-    ORDER.forEach(id => {
-      const home = r0.cast.includes(id) ? 0 : 1;
-      const vote = Math.random() < 0.72 ? home : 1 - home;
-      vote === 0 ? v0++ : v1++;
-    });
-    const winnerRoom = v0 >= v1 ? r0 : r1;
-    const votes = `${Math.max(v0, v1)}–${Math.min(v0, v1)}`;
-
     qc.script = [
-      { s: d0, k: 'reaction', to: 'you', txt: fill(pick(T.pitch[stanceOf(d0)]), { room: r0.title, best: r0.best || 'everything at once' }) },
-      { s: d1, k: 'reaction', to: 'you', txt: fill(pick(T.pitch[stanceOf(d1)]), { room: r1.title, best: r1.best || 'starting small' }) },
-      { s: reactor, k: 'reaction', txt: fill(pick(T.quorumReact[stanceOf(reactor)]), {}) },
-      { sys: `🗳 The vote is in: ${r0.title} ${v0} — ${r1.title} ${v1}.` },
-      { s: delegate(winnerRoom), k: 'summary', to: 'you', txt: fill(T.closer[0], { topic: SESSION.topic, winner: winnerRoom.best || 'the winning idea', votes }) },
+      { s: d1, k: 'reaction', to: 'you', txt: fill(tFor(T.pitch, d1), { best: S.short(S.idea1) }) },
+      { s: d2, k: 'reaction', to: 'you', txt: fill(tFor(T.pitch, d2), { best: S.short(S.idea2) }) },
+      { s: reactor, k: 'reaction', txt: fill(tFor(T.quorumReact, reactor), {}) },
+      { sys: `🗳 Dot vote: “${S.short(S.idea1)}” ${v1} — “${S.short(S.idea2)}” ${v2}.` },
+      { s: alivePersona(v1 > v2 ? d1 : d2), k: 'summary', to: 'you', txt: fill(T.closer[0], { topic: SESSION.topic, winner, votes }) },
     ];
     qc.done = false;
     qc.pos = 0;
+    qc.started = true;
     schedule(qc, 2600);
-    markWinnerCard(winnerRoom.best);
-  }
-
-  function markWinnerCard(best) {
-    if (!best) return;
     setTimeout(() => {
-      [...document.querySelectorAll('.note-card')].find(c => c.textContent.includes(best.slice(0, 40)))?.classList.add('winner');
-    }, 4000);
+      [...document.querySelectorAll('.note-card')].find(c => c.textContent.includes(winner.slice(0, 40)))?.classList.add('winner');
+    }, 6000);
   }
 
   /* ============ Panels ============ */
@@ -1305,10 +1366,7 @@
     e.className = 't-entry' + (isUser ? ' user' : '');
     if (color) e.style.setProperty('--t-c', color);
     let tag = '';
-    if (ch) {
-      const r = ch.room;
-      tag = `<span class="room-tag" style="--rt-c:${r.color}">${r.tag}</span>`;
-    }
+    if (ch) tag = `<span class="room-tag" style="--rt-c:${ROOM_COLORS[ch.idx]}">${ch.room.tag}</span>`;
     e.innerHTML = `${tag}<span class="t-who">${who}:</span> ${txt.replace(/</g, '&lt;')}`;
     const list = $('tList');
     const pinned = list.scrollTop + list.clientHeight >= list.scrollHeight - 40;
@@ -1316,7 +1374,7 @@
     if (pinned) list.scrollTop = list.scrollHeight;
   }
 
-  function addIdea(turn, p) {
+  function addIdea(ch, turn, p) {
     ideas++;
     $('shelfEmpty')?.remove();
     $('ideaCount').textContent = ideas + (ideas === 1 ? ' idea' : ' ideas');
@@ -1324,51 +1382,42 @@
     card.className = 'note-card';
     card.style.setProperty('--n-c', p.color);
     card.style.setProperty('--tilt', ((Math.random() * 4) - 2).toFixed(1) + 'deg');
-    const short = turn.txt.length > 110 ? turn.txt.slice(0, 107) + '…' : turn.txt;
-    card.innerHTML = `<div class="n-who">${p.name}</div>${short.replace(/</g, '&lt;')}`;
+    const short = turn.txt.length > 120 ? turn.txt.slice(0, 117) + '…' : turn.txt;
+    card.innerHTML = `<div class="n-who">${p.name} <span class="n-room">· ${ch ? ch.room.tag : ''}</span></div>${short.replace(/</g, '&lt;')}`;
     $('shelf').appendChild(card);
   }
 
   /* ============ Start ============ */
-  const SESSION = { topic: '' };
-
   $('startBtn').addEventListener('click', () => {
     const topic = $('topicInput').value.trim() || "a coffee shop that's only open at night";
     SESSION.topic = topic;
-    const kws = keywords(topic);
 
-    // spawn cast
     CAST = genCast();
     PERSONAS = Object.fromEntries(CAST.map(a => [a.id, a]));
     ORDER = CAST.map(a => a.id);
 
-    // build rooms: diverge room, converge room, quorum in the middle
-    const divergers = ORDER.filter(id => ['dreamer', 'advocate'].includes(stanceOf(id)));
-    const convergers = ORDER.filter(id => ['skeptic', 'pragmatist'].includes(stanceOf(id)));
-    const wildcards = ORDER.filter(id => stanceOf(id) === 'wildcard');
-    wildcards.forEach((id, i) => (i % 2 === 0 ? divergers : convergers).push(id));
-    if (!divergers.length) divergers.push(convergers.pop());
-    if (!convergers.length) convergers.push(divergers.pop());
+    ROOMS = ROOM_DEFS.map(def => ({
+      idx: def.idx,
+      title: pick(def.titles),
+      purpose: def.purpose,
+      tag: def.idx === 'q' ? 'Q' : ['DREAM', 'PLAN', 'TEST'][def.idx],
+    }));
+    ROOMS.forEach((r, i) => {
+      const el = $('label' + i);
+      el.innerHTML = `${r.title.toUpperCase()} <span class="pur">· ${r.purpose}</span>`;
+      el.style.setProperty('--r-c', ROOM_COLORS[r.idx]);
+    });
 
-    ROOMS = [
-      { idx: 0, title: pick(ROOM_NAME_POOLS[0]), tag: '1', color: '#7C5CE8', cast: divergers, best: null },
-      { idx: 1, title: pick(ROOM_NAME_POOLS[1]), tag: '2', color: '#2FB8A6', cast: convergers, best: null },
-      { idx: 'q', title: 'The Quorum', tag: 'Q', color: '#E0B93D', cast: [], best: null },
-    ];
+    // everyone starts in the Dreamer Room
     charRoom = {};
-    ROOMS[0].cast.forEach(id => charRoom[id] = 0);
-    ROOMS[1].cast.forEach(id => charRoom[id] = 1);
-
-    $('label0').textContent = ROOMS[0].title.toUpperCase();
-    $('label1').textContent = ROOMS[1].title.toUpperCase();
-    $('labelQ').textContent = 'THE QUORUM';
-    $('label0').style.setProperty('--r-c', ROOMS[0].color);
-    $('label1').style.setProperty('--r-c', ROOMS[1].color);
-    $('labelQ').style.setProperty('--r-c', ROOMS[2].color);
+    ORDER.forEach(id => charRoom[id] = 0);
 
     makeChannels();
-    CHANNELS[0].script = genRoomScript(ROOMS[0], topic, kws);
-    CHANNELS[1].script = genRoomScript(ROOMS[1], topic, kws);
+    SESSION.build = buildSession(topic);
+    CHANNELS[0].script = SESSION.build.dream;
+    CHANNELS[1].script = SESSION.build.real;
+    CHANNELS[2].script = SESSION.build.crit;
+    CHANNELS[0].started = true;
 
     $('topicChip').textContent = topic;
     $('setup').classList.add('hidden');
@@ -1376,9 +1425,8 @@
     $('dock').style.display = 'flex';
     phase = 'rooms';
 
-    // spawn agents into their rooms, staggered
     addSystem(`🧬 Spawning ${CAST.length} agents for “${topic}”…`);
-    addSystem(`🚪 ${ROOMS[0].title} and ${ROOMS[1].title} are open. ${ROOMS[2].title} waits in the middle.`);
+    addSystem(`🚪 Disney Method in session: dream it in ${ROOMS[0].title}, plan it in ${ROOMS[1].title}, break it in ${ROOMS[2].title}, decide in ${ROOMS[3].title}.`);
     const castEl = $('cast');
     castEl.innerHTML = '';
     CAST.forEach((agent, i) => {
@@ -1388,20 +1436,20 @@
         animators['ch-' + agent.id] = makeAnimator($('ch-' + agent.id + '-cv'), agent.sprite);
         el.classList.add('spawn');
         setTimeout(() => el.classList.remove('spawn'), 600);
-        const z = zoneBounds(charRoom[agent.id]);
-        placeChar(agent.id, z.x0 + Math.random() * (z.x1 - z.x0), z.y0 + Math.random() * (z.y1 - z.y0));
+        const [x, y] = randSpot(0);
+        placeChar(agent.id, x, y);
       }, reduced ? 0 : i * 220);
     });
 
     const startDelay = reduced ? 300 : CAST.length * 220 + 800;
-    setTimeout(() => { startWander(); schedule(CHANNELS[0], 200); schedule(CHANNELS[1], 1400); }, startDelay);
+    setTimeout(() => { startWander(); schedule(CHANNELS[0], 200); }, startDelay);
   });
 
   /* ============ Controls ============ */
   $('pauseBtn').addEventListener('click', () => {
     paused = !paused;
     $('pauseBtn').textContent = paused ? '▶ Resume' : '⏸ Pause';
-    if (!paused) CHANNELS.forEach(ch => { if (ch.waiting) { ch.waiting = false; ch.done = false; schedule(ch, 400); } });
+    if (!paused) CHANNELS.forEach(ch => { if (ch.waiting) { ch.waiting = false; schedule(ch, 400); } });
   });
 
   $('wrapBtn').addEventListener('click', startQuorum);
@@ -1428,9 +1476,10 @@
     let mention = null, text = raw;
     const m = raw.match(/^@(\w+)\s*/);
     if (m && byName(m[1])) { mention = byName(m[1]); text = raw.slice(m[0].length) || raw; }
-    const ch = mention ? channelOf(mention) : CHANNELS[0];
+    const ch = mention ? channelOf(mention) : CHANNELS.find(c => c.started && !c.done) || CHANNELS[0];
     ch.queue.push(ackTurn(text, mention));
     if (ch.done && phase !== 'done') { ch.done = false; schedule(ch, 400); }
+    else if (!ch.started) { ch.started = true; schedule(ch, 400); }
   });
 
   addEventListener('resize', () => {
