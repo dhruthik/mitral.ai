@@ -1,0 +1,1333 @@
+<title>Brainstorm Stage</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Karla:ital,wght@0,400;0,500;0,700;1,400&family=Silkscreen:wght@400;700&display=swap">
+<style>
+  :root {
+    --paper: #FAF8FF;
+    --surface: #FFFFFF;
+    --surface-2: #F1EDFB;
+    --ink: #2B2440;
+    --ink-soft: #6B6383;
+    --line: #E4DEF4;
+    --brand: #6C4CE0;
+    --brand-soft: #EDE8FC;
+    --note: #FFF3C4;
+    --note-ink: #5C4A12;
+    --shadow: 0 10px 30px rgba(43, 36, 64, 0.10);
+    --nova: #7C5CE8; --nova-soft: #EFEAFE;
+    --rex: #64748B;  --rex-soft: #EDF1F6;
+    --june: #E09A2F; --june-soft: #FCF1DC;
+    --priya: #E86A8A; --priya-soft: #FDEAF0;
+    --zed: #2FB8A6;  --zed-soft: #E2F7F3;
+    --roomA: #6C4CE0;
+    --roomB: #2FB8A6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #181329;
+      --surface: #221B3B;
+      --surface-2: #2B2350;
+      --ink: #EDE9FF;
+      --ink-soft: #A79FC4;
+      --line: #372E5C;
+      --brand: #9D85F2;
+      --brand-soft: #322860;
+      --note: #E8D98A;
+      --note-ink: #3D3208;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      --nova: #A78BFA; --nova-soft: #37296A;
+      --rex: #94A3B8;  --rex-soft: #303A4D;
+      --june: #F0B457; --june-soft: #4A3A16;
+      --priya: #F491AB; --priya-soft: #532433;
+      --zed: #4FD8C4;  --zed-soft: #14453D;
+      --roomA: #9D85F2;
+      --roomB: #4FD8C4;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #181329;
+    --surface: #221B3B;
+    --surface-2: #2B2350;
+    --ink: #EDE9FF;
+    --ink-soft: #A79FC4;
+    --line: #372E5C;
+    --brand: #9D85F2;
+    --brand-soft: #322860;
+    --note: #E8D98A;
+    --note-ink: #3D3208;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    --nova: #A78BFA; --nova-soft: #37296A;
+    --rex: #94A3B8;  --rex-soft: #303A4D;
+    --june: #F0B457; --june-soft: #4A3A16;
+    --priya: #F491AB; --priya-soft: #532433;
+    --zed: #4FD8C4;  --zed-soft: #14453D;
+    --roomA: #9D85F2;
+    --roomB: #4FD8C4;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Karla', 'Segoe UI', sans-serif;
+    line-height: 1.5;
+  }
+  .app {
+    max-width: 1220px;
+    margin: 0 auto;
+    padding: 20px 24px 120px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  header.top {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .logo {
+    font-family: 'Silkscreen', 'Fredoka', sans-serif;
+    font-weight: 700;
+    font-size: 1.25rem;
+    letter-spacing: 0.01em;
+  }
+  .logo .dot { color: var(--brand); }
+  .tag { color: var(--ink-soft); font-size: 0.95rem; }
+
+  /* ---------- Topic setup ---------- */
+  .setup {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    padding: 40px 32px 48px;
+    text-align: center;
+  }
+  .setup h1 {
+    font-family: 'Fredoka', sans-serif;
+    font-weight: 600;
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+    margin: 0 0 8px;
+    text-wrap: balance;
+  }
+  .setup p.sub { color: var(--ink-soft); margin: 0 auto 28px; max-width: 46ch; }
+  .topic-row {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 34px;
+  }
+  .topic-row input {
+    width: min(440px, 90%);
+    padding: 14px 18px;
+    font: inherit;
+    font-size: 1.05rem;
+    color: var(--ink);
+    background: var(--paper);
+    border: 2px solid var(--line);
+    border-radius: 999px;
+    outline: none;
+  }
+  .topic-row input:focus { border-color: var(--brand); }
+  .btn {
+    font-family: 'Fredoka', sans-serif;
+    font-weight: 600;
+    font-size: 1rem;
+    padding: 13px 26px;
+    border: none;
+    border-radius: 999px;
+    background: var(--brand);
+    color: #fff;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(108, 76, 224, 0.35); }
+  .btn:focus-visible, .topic-row input:focus-visible, .interject input:focus-visible {
+    outline: 3px solid var(--brand);
+    outline-offset: 2px;
+  }
+  .btn.ghost {
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+  .cast-preview {
+    display: flex;
+    justify-content: center;
+    gap: clamp(8px, 3vw, 28px);
+    flex-wrap: wrap;
+  }
+
+  /* ---------- Layout ---------- */
+  .session { display: none; flex-direction: column; gap: 18px; }
+  .session.active { display: flex; }
+  .setup.hidden { display: none; }
+
+  .topic-chip {
+    align-self: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--brand-soft);
+    color: var(--brand);
+    font-family: 'Fredoka', sans-serif;
+    font-weight: 500;
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-size: 0.95rem;
+    max-width: 100%;
+  }
+  .topic-chip .lbl {
+    font-family: 'Silkscreen', sans-serif;
+    font-weight: 700;
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.75;
+  }
+
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 330px;
+    gap: 18px;
+    align-items: stretch;
+  }
+
+  /* ---------- The rooms ---------- */
+  .stage {
+    position: relative;
+    background:
+      radial-gradient(ellipse 90% 55% at 50% 0%, var(--brand-soft) 0%, transparent 60%),
+      repeating-conic-gradient(var(--surface-2) 0% 25%, transparent 0% 50%) 0 0 / 56px 56px,
+      var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    min-height: 520px;
+    overflow: hidden;
+  }
+  .wall-seg {
+    position: absolute;
+    left: var(--wall-x, 54%);
+    width: 8px;
+    margin-left: -4px;
+    background:
+      repeating-linear-gradient(0deg, var(--line) 0 14px, var(--surface-2) 14px 28px);
+    border-radius: 4px;
+    z-index: 1;
+  }
+  .wall-top { top: 0; height: calc(50% - 56px); }
+  .wall-bottom { bottom: 0; height: calc(50% - 56px); }
+  .room-label {
+    position: absolute;
+    top: 10px;
+    font-family: 'Silkscreen', sans-serif;
+    font-size: 0.62rem;
+    padding: 3px 10px;
+    border-radius: 8px;
+    border: 2px solid;
+    background: var(--surface);
+    z-index: 1;
+  }
+  .room-label.a { left: 12px; color: var(--roomA); border-color: var(--roomA); }
+  .room-label.b { right: 12px; color: var(--roomB); border-color: var(--roomB); }
+  .cast { position: absolute; inset: 0; z-index: 2; }
+  .you-marker {
+    position: absolute;
+    bottom: 8px; left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Silkscreen', sans-serif;
+    font-size: 0.6rem;
+    color: var(--brand);
+    background: var(--surface);
+    border: 2px solid var(--brand);
+    border-radius: 8px;
+    padding: 2px 10px;
+    z-index: 1;
+  }
+  .action-chip {
+    position: absolute;
+    top: 40px; left: 12px;
+    z-index: 6;
+    font-family: 'Silkscreen', sans-serif;
+    font-size: 0.62rem;
+    color: var(--ink-soft);
+    background: var(--surface);
+    border: 2px solid var(--line);
+    border-radius: 8px;
+    padding: 3px 10px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    max-width: 70%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .action-chip.two { top: 68px; }
+  .action-chip.show { opacity: 1; }
+  .action-chip .a-who { color: var(--a-c, var(--brand)); }
+
+  .character {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 76px;
+    position: absolute;
+    transition: opacity 0.4s ease;
+    will-change: left, top;
+  }
+  .cast-preview .character { position: static; }
+
+  .sprite-wrap {
+    position: relative;
+    animation: bob 3.2s ease-in-out infinite;
+    animation-delay: var(--bob-delay, 0s);
+    line-height: 0;
+  }
+  @keyframes bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+  .character.walking .sprite-wrap {
+    animation: step 0.3s ease-in-out infinite;
+  }
+  @keyframes step {
+    0%, 100% { transform: translateY(0) rotate(-2deg); }
+    50% { transform: translateY(-5px) rotate(2deg); }
+  }
+  canvas.sprite {
+    width: 56px; height: 75px;
+    image-rendering: pixelated;
+    transition: transform 0.2s ease;
+  }
+  .cast-preview canvas.sprite { width: 70px; height: 94px; }
+  .character.face-left canvas.sprite { transform: scaleX(-1); }
+  .character .shadow-dot {
+    width: 46px; height: 8px;
+    background: rgba(43, 36, 64, 0.15);
+    border-radius: 50%;
+    margin-top: -4px;
+  }
+  .character .nm {
+    font-family: 'Silkscreen', sans-serif;
+    font-weight: 700;
+    font-size: 0.68rem;
+    color: var(--c);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    padding: 2px 10px;
+    border-radius: 6px;
+  }
+  .character .stance {
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .character.speaking .sprite-wrap {
+    animation: talk-bounce 0.5s ease-in-out infinite;
+    filter: drop-shadow(0 0 12px color-mix(in srgb, var(--c) 65%, transparent));
+  }
+  @keyframes talk-bounce {
+    0%, 100% { transform: translateY(0); }
+    40% { transform: translateY(-5px) scale(1.03, 0.98); }
+    70% { transform: translateY(0) scale(0.99, 1.02); }
+  }
+  .character .think {
+    position: absolute;
+    top: -18px; right: -8px;
+    background: var(--surface);
+    border: 2px solid var(--c);
+    border-radius: 8px;
+    padding: 1px 7px;
+    font-family: 'Silkscreen', sans-serif;
+    font-weight: 700;
+    color: var(--c);
+    letter-spacing: 0.1em;
+    display: none;
+    animation: pulse 1s ease-in-out infinite;
+    z-index: 4;
+    line-height: 1.4;
+  }
+  .character.thinking .think { display: block; }
+  @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+  /* ---------- KO ---------- */
+  .character.ko .sprite-wrap {
+    animation: ko-fall 0.6s cubic-bezier(0.5, 1.4, 0.6, 1) forwards;
+    filter: grayscale(0.75) brightness(0.92);
+  }
+  @keyframes ko-fall {
+    0% { transform: translateY(0) rotate(0deg); }
+    35% { transform: translateY(-16px) rotate(-14deg); }
+    100% { transform: translateY(14px) rotate(90deg); }
+  }
+  .character.ko .nm { text-decoration: line-through; opacity: 0.65; }
+  .character.ko .stance { visibility: hidden; }
+  .character .pow {
+    position: absolute;
+    top: -22px; left: 50%;
+    font-size: 1.7rem;
+    display: none;
+    z-index: 5;
+    pointer-events: none;
+  }
+  .character.ko .pow { display: block; animation: pow 1s ease forwards; }
+  @keyframes pow {
+    0% { transform: translateX(-50%) scale(0.3); opacity: 0; }
+    25% { transform: translateX(-50%) scale(1.5); opacity: 1; }
+    100% { transform: translateX(-50%) translateY(-14px) scale(1); opacity: 0; }
+  }
+  .character.revive .sprite-wrap { animation: revive-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  @keyframes revive-pop {
+    0% { transform: translateY(14px) rotate(90deg); }
+    60% { transform: translateY(-10px) rotate(-6deg); }
+    100% { transform: translateY(0) rotate(0deg); }
+  }
+
+  /* ---------- Speech bubbles ---------- */
+  .bubble {
+    position: absolute;
+    z-index: 3;
+    background: var(--surface);
+    border: 2px solid var(--b-c, var(--line));
+    border-radius: 14px;
+    padding: 12px 16px;
+    box-shadow: var(--shadow);
+    font-size: 0.96rem;
+    opacity: 0;
+    transform: scale(0.6);
+    transform-origin: bottom center;
+    transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: auto;
+  }
+  .bubble.b2 { z-index: 4; }
+  .bubble.show { opacity: 1; transform: scale(1); }
+  .bubble .who {
+    font-family: 'Silkscreen', sans-serif;
+    font-weight: 700;
+    font-size: 0.66rem;
+    color: var(--b-c);
+    margin-bottom: 2px;
+  }
+  .bubble .tail {
+    position: absolute;
+    bottom: -12px;
+    left: var(--tail-x, 50%);
+    width: 20px; height: 20px;
+    background: var(--surface);
+    border-right: 2px solid var(--b-c);
+    border-bottom: 2px solid var(--b-c);
+    transform: translateX(-50%) rotate(45deg);
+    border-bottom-right-radius: 4px;
+  }
+  .bubble .cur {
+    display: inline-block;
+    width: 8px; height: 1.05em;
+    vertical-align: text-bottom;
+    background: var(--b-c);
+    border-radius: 2px;
+    animation: pulse 0.8s ease-in-out infinite;
+  }
+  .bubble.done .cur { display: none; }
+
+  /* ---------- Chat ---------- */
+  .transcript {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 520px;
+  }
+  .panel-h {
+    font-family: 'Silkscreen', sans-serif;
+    font-weight: 700;
+    font-size: 0.66rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    padding: 14px 18px 10px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .t-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 560px;
+    font-size: 0.9rem;
+  }
+  .t-entry .t-who { font-weight: 700; color: var(--t-c, var(--ink)); }
+  .t-entry .room-tag {
+    font-family: 'Silkscreen', sans-serif;
+    font-size: 0.56rem;
+    padding: 1px 6px;
+    border-radius: 5px;
+    border: 1.5px solid;
+    margin-right: 6px;
+    vertical-align: 2px;
+  }
+  .t-entry .room-tag.ra { color: var(--roomA); border-color: var(--roomA); }
+  .t-entry .room-tag.rb { color: var(--roomB); border-color: var(--roomB); }
+  .t-entry.user {
+    background: var(--brand-soft);
+    border-radius: 12px;
+    padding: 8px 12px;
+  }
+  .t-entry.user .t-who { color: var(--brand); }
+  .t-entry.sys { color: var(--ink-soft); font-style: italic; }
+
+  /* ---------- Idea board ---------- */
+  .board {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    padding-bottom: 16px;
+  }
+  .board .shelf {
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    padding: 18px 18px 10px;
+    min-height: 130px;
+    align-items: flex-start;
+  }
+  .board .empty {
+    color: var(--ink-soft);
+    font-style: italic;
+    align-self: center;
+    margin: 0 auto;
+  }
+  .note-card {
+    flex: 0 0 178px;
+    background: var(--note);
+    color: var(--note-ink);
+    border-radius: 6px;
+    padding: 12px 14px 14px;
+    font-size: 0.88rem;
+    line-height: 1.4;
+    box-shadow: 0 4px 10px rgba(43, 36, 64, 0.18);
+    border-top: 6px solid var(--n-c);
+    transform: rotate(var(--tilt, -1.5deg)) scale(0);
+    animation: pop-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+  @keyframes pop-in { to { transform: rotate(var(--tilt, -1.5deg)) scale(1); } }
+  .note-card .n-who {
+    font-family: 'Silkscreen', sans-serif;
+    font-weight: 700;
+    font-size: 0.62rem;
+    color: var(--n-c);
+    filter: brightness(0.8);
+    margin-bottom: 4px;
+  }
+
+  /* ---------- Controls + interject ---------- */
+  .dock {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    display: flex;
+    justify-content: center;
+    padding: 14px 24px 20px;
+    background: linear-gradient(transparent, var(--paper) 45%);
+    z-index: 10;
+  }
+  .dock-inner {
+    width: min(780px, 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .control-bar {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+  }
+  .control-bar .btn { padding: 9px 20px; font-size: 0.9rem; }
+  .interject {
+    display: flex;
+    gap: 10px;
+    background: var(--surface);
+    border: 2px solid var(--line);
+    border-radius: 999px;
+    padding: 6px 6px 6px 20px;
+    box-shadow: var(--shadow);
+  }
+  .interject input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font: inherit;
+    font-size: 1rem;
+    color: var(--ink);
+    outline: none;
+    min-width: 0;
+  }
+  .hint { text-align: center; font-size: 0.8rem; color: var(--ink-soft); }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    margin: -1px; padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sprite-wrap, .character.speaking .sprite-wrap, .note-card, .bubble, .character.ko .pow, .character.revive .sprite-wrap { animation: none; transition: none; }
+    .character.ko .sprite-wrap { animation: none; transform: translateY(14px) rotate(90deg); }
+    .note-card { transform: rotate(var(--tilt, -1.5deg)) scale(1); }
+    .bubble { opacity: 1; transform: scale(1); }
+  }
+
+  @media (max-width: 880px) {
+    .main-grid { grid-template-columns: 1fr; }
+    .stage { min-height: 420px; }
+    .transcript { min-height: 0; }
+    .t-list { max-height: 240px; }
+    .character .stance { display: none; }
+    .app { padding-bottom: 150px; }
+  }
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="logo">BRAINSTORM STAGE<span class="dot">_</span></div>
+    <div class="tag">Two rooms. Two conversations. You run both. <em>(sample — dialogue is mocked)</em></div>
+  </header>
+
+  <!-- Setup -->
+  <section class="setup" id="setup">
+    <h1>What should the gang brainstorm?</h1>
+    <p class="sub">The cast splits into rooms and brainstorms in parallel — wander between conversations, steer either one, and every good idea lands on the board.</p>
+    <div class="topic-row">
+      <input id="topicInput" type="text" value="a coffee shop that's only open at night" aria-label="Brainstorm topic">
+      <button class="btn" id="startBtn">Start the session</button>
+    </div>
+    <div class="cast-preview" id="castPreview" aria-hidden="true"></div>
+  </section>
+
+  <!-- Session -->
+  <section class="session" id="session">
+    <div class="topic-chip"><span class="lbl">Topic</span> <span id="topicChip"></span></div>
+
+    <div class="main-grid">
+      <div class="stage" id="stage" aria-hidden="true">
+        <div class="wall-seg wall-top"></div>
+        <div class="wall-seg wall-bottom"></div>
+        <div class="room-label a">ROOM A</div>
+        <div class="room-label b">ROOM B</div>
+        <div class="action-chip" id="actionChip0"></div>
+        <div class="action-chip two" id="actionChip1"></div>
+        <div class="you-marker">YOU</div>
+        <div class="bubble" id="bubble0">
+          <div class="who" id="who0"></div>
+          <span id="text0"></span><span class="cur"></span>
+          <div class="tail"></div>
+        </div>
+        <div class="bubble b2" id="bubble1">
+          <div class="who" id="who1"></div>
+          <span id="text1"></span><span class="cur"></span>
+          <div class="tail"></div>
+        </div>
+        <div class="cast" id="cast"></div>
+      </div>
+
+      <aside class="transcript">
+        <div class="panel-h">Chat — all rooms</div>
+        <div class="t-list" id="tList"></div>
+      </aside>
+    </div>
+
+    <div class="board">
+      <div class="panel-h">Idea board <span id="ideaCount">0 ideas</span></div>
+      <div class="shelf" id="shelf"><div class="empty" id="shelfEmpty">Ideas from both rooms get pinned here…</div></div>
+    </div>
+  </section>
+</div>
+
+<!-- Dock -->
+<div class="dock" id="dock" style="display:none">
+  <div class="dock-inner">
+    <div class="control-bar">
+      <button class="btn ghost" id="pauseBtn">⏸ Pause</button>
+      <button class="btn ghost" id="wrapBtn">Wrap it up</button>
+    </div>
+    <form class="interject" id="interjectForm">
+      <input id="interjectInput" type="text" placeholder="Jump in… try “@Rex what's the catch?” or “ko @Zed”" aria-label="Say something to the group">
+      <button class="btn" type="submit">Say it</button>
+    </form>
+    <div class="hint">@mention someone to steer their room's conversation · “ko @Zed” bonks them (they bounce back) · “revive @Zed” helps them up</div>
+  </div>
+</div>
+
+<div class="sr-only" aria-live="polite" id="live"></div>
+
+<script>
+  /* ============ Pixel sprites ============
+     12x16 pixel grids. Letters map to the persona's palette;
+     anything unknown (or a short row) renders transparent.
+     Frames: idle + row overrides for blink / talk / ko. */
+
+  const OUTLINE = '#241E38';
+
+  const SPRITES = {
+    nova: { // The dreamer: huge violet cloud of hair, sparkles orbiting
+      pal: { h: '#5B3FC4', H: '#7C5CE8', s: '#E8B88A', c: '#9D85F2', e: OUTLINE, m: '#B4543E', a: '#FFD8FE', k: OUTLINE, w: '#FFFFFF' },
+      idle: [
+        '.a...hh...a.',
+        '..hhHHHHhh..',
+        '.hHHHHHHHHh.',
+        '.hHssssssHh.',
+        '.hHewssweHh.',
+        '.hHssssssHh.',
+        '..ssmmssss..',
+        '...ssssss...',
+        '..hcccccch..',
+        '.sccccccccs.',
+        '.sccccccccs.',
+        '..cccccccc..',
+        '..cccccccc..',
+        '...cc..cc...',
+        '..kk....kk..',
+        '............',
+      ],
+      blink: { 4: '.hHkssskkHh.' },
+      talk:  { 6: '..ssmmmmss..', 7: '...smmmms...' },
+      ko:    { 4: '.hHkssskkHh.', 6: '..ssmmmmss..' },
+    },
+    rex: { // The skeptic: flat hair, one permanently raised eyebrow, arms crossed
+      pal: { h: '#4A4238', s: '#EFCFAF', c: '#64748B', e: OUTLINE, m: OUTLINE, k: OUTLINE, w: '#FFFFFF' },
+      idle: [
+        '............',
+        '..hhhhhhhh..',
+        '..hhhhhhhh..',
+        '..kkssssss..',
+        '..sesskkss..',
+        '..sesssess..',
+        '..ssssssss..',
+        '..ssmmmmss..',
+        '...ssssss...',
+        '..cccccccc..',
+        '.ccsssssscc.',
+        '.ccsssssscc.',
+        '..cccccccc..',
+        '...cc..cc...',
+        '..kk....kk..',
+        '............',
+      ],
+      blink: { 5: '..skssskss..' },
+      talk:  { 7: '..ssmmmsss..', 8: '...smmsss...' },
+      ko:    { 5: '..skssskss..', 7: '..smmmmmss..' },
+    },
+    june: { // The pragmatist: work cap, wrench in hand, half-smirk
+      pal: { a: '#E09A2F', A: '#B87716', s: '#A9714B', c: '#3E5C76', e: OUTLINE, m: OUTLINE, g: '#9AA3AE', k: OUTLINE, w: '#FFFFFF' },
+      idle: [
+        '...aaaaaa...',
+        '..aaaaaaaa..',
+        '.AAAAAAAAAA.',
+        '..ssssssss..',
+        '..sesssses..',
+        '..ssssssss..',
+        '..ssssmmss..',
+        '...ssssss...',
+        '..ccccccccg.',
+        '.sccccccccg.',
+        '.sccccccccg.',
+        '..cccccccc..',
+        '..cccccccc..',
+        '...cc..cc...',
+        '..kk....kk..',
+        '............',
+      ],
+      blink: { 4: '..skssssks..' },
+      talk:  { 6: '..sssmmmss..', 7: '...ssmmss...' },
+      ko:    { 4: '..skssssks..', 6: '..ssmmmmss..' },
+    },
+    priya: { // The advocate: hair buns, big open smile, hand already up
+      pal: { h: '#2A2135', s: '#7A4A32', c: '#E86A8A', e: OUTLINE, m: '#4A1D12', k: OUTLINE, w: '#FFFFFF' },
+      idle: [
+        '.hh......hh.',
+        '.hhhhhhhhhh.',
+        '..hhhhhhhh..',
+        '..ssssssss..',
+        '..sewssews..',
+        '..ssssssss..',
+        '..ssmmmmss..',
+        '...ssssss.s.',
+        '..ccccccccs.',
+        '.scccccccc..',
+        '.scccccccc..',
+        '..cccccccc..',
+        '..cccccccc..',
+        '...cc..cc...',
+        '..kk....kk..',
+        '............',
+      ],
+      blink: { 4: '..skssssks..' },
+      talk:  { 6: '..smmmmmms..', 7: '...smmmms.s.' },
+      ko:    { 4: '..skssssks..', 6: '..ssmmmmss..', 7: '...ssssss...' },
+    },
+    zed: { // The wildcard: not entirely human — teal, antenna, mismatched eyes, carries a die
+      pal: { s: '#3ECDBA', S: '#2FA895', a: '#FFD166', c: '#2B6E80', e: OUTLINE, m: OUTLINE, k: OUTLINE, w: '#FFFFFF' },
+      idle: [
+        '.....aa.....',
+        '......a.....',
+        '..ssssssss..',
+        '.ssssssssss.',
+        '.sseesssess.',
+        '.ssssssssss.',
+        '..smsmsmss..',
+        '..ssssssss..',
+        '..cccccccc..',
+        '.sccccccccww',
+        '..ccccccccww',
+        '..cccccccc..',
+        '..cccccccc..',
+        '...ss..ss...',
+        '..kk....kk..',
+        '............',
+      ],
+      blink: { 4: '.sskkssskss.' },
+      talk:  { 6: '..smmmmmss..', 7: '..ssmmmmss..' },
+      ko:    { 4: '.sskkssskss.', 6: '..smmmmmss..' },
+    },
+  };
+
+  function drawFrame(ctx, sprite, frameName) {
+    const rows = sprite.idle.map((r, i) => (sprite[frameName] && sprite[frameName][i]) || r);
+    ctx.clearRect(0, 0, 12, 16);
+    rows.forEach((row, y) => {
+      for (let x = 0; x < 12; x++) {
+        const col = sprite.pal[row[x]];
+        if (!col) continue;
+        ctx.fillStyle = col;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    });
+  }
+
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const animators = {};
+
+  function makeAnimator(canvas, spriteId) {
+    const ctx = canvas.getContext('2d');
+    const sprite = SPRITES[spriteId];
+    const a = { ctx, sprite, mode: 'idle', flip: false };
+    drawFrame(ctx, sprite, 'idle');
+    if (!reduced) {
+      a.tick = setInterval(() => {
+        if (a.mode === 'talk') {
+          a.flip = !a.flip;
+          drawFrame(ctx, sprite, a.flip ? 'talk' : 'idle');
+        } else if (a.mode === 'idle' && Math.random() < 0.12) {
+          drawFrame(ctx, sprite, 'blink');
+          setTimeout(() => { if (a.mode === 'idle') drawFrame(ctx, sprite, 'idle'); }, 140);
+        }
+      }, 170);
+    }
+    a.set = mode => { a.mode = mode; drawFrame(ctx, sprite, mode === 'talk' ? 'talk' : mode === 'ko' ? 'ko' : 'idle'); };
+    return a;
+  }
+
+  /* ============ Cast ============ */
+  const PERSONAS = {
+    nova:  { name: 'Nova',  stance: 'the dreamer',    v: 'nova'  },
+    rex:   { name: 'Rex',   stance: 'the skeptic',    v: 'rex'   },
+    june:  { name: 'June',  stance: 'the pragmatist', v: 'june'  },
+    priya: { name: 'Priya', stance: 'the advocate',   v: 'priya' },
+    zed:   { name: 'Zed',   stance: 'the wildcard',   v: 'zed'   },
+  };
+  const ORDER = ['rex', 'priya', 'nova', 'june', 'zed'];
+  const charRoom = { nova: 0, rex: 0, priya: 0, june: 1, zed: 1 };
+
+  function renderCast(target, prefix) {
+    target.innerHTML = '';
+    ORDER.forEach((id, i) => {
+      const p = PERSONAS[id];
+      const el = document.createElement('div');
+      el.className = 'character';
+      el.id = prefix + id;
+      el.style.setProperty('--c', `var(--${p.v})`);
+      el.style.setProperty('--bob-delay', (-i * 0.7) + 's');
+      el.innerHTML = `<div class="sprite-wrap"><canvas class="sprite" width="12" height="16" id="${prefix}${id}-cv"></canvas><span class="think">…</span></div>
+        <span class="pow">💥</span>
+        <div class="shadow-dot"></div>
+        <div class="nm">${p.name}</div><div class="stance">${p.stance}</div>`;
+      target.appendChild(el);
+      animators[prefix + id] = makeAnimator(document.getElementById(`${prefix}${id}-cv`), id);
+    });
+  }
+  renderCast(document.getElementById('castPreview'), 'pv-');
+
+  /* ============ Room movement ============ */
+  const CHAR_W = 76, CHAR_H = 108, HEADROOM = 150;
+  const roomChars = {};
+  const $ = id => document.getElementById(id);
+
+  function roomSize() { const s = $('stage'); return { w: s.clientWidth, h: s.clientHeight }; }
+  function wallX() { return roomSize().w * 0.54; }
+
+  function zoneBounds(roomIdx) {
+    const { w, h } = roomSize();
+    const wx = wallX();
+    let x0 = 8, x1 = w - CHAR_W - 8;
+    if (roomIdx === 0) x1 = wx - CHAR_W - 10;
+    if (roomIdx === 1) x0 = wx + 10;
+    return { x0, x1, y0: HEADROOM, y1: h - CHAR_H - 34 };
+  }
+
+  function clampPos(x, y, roomIdx) {
+    const z = zoneBounds(roomIdx);
+    return [Math.max(z.x0, Math.min(x, z.x1)), Math.max(z.y0, Math.min(y, z.y1))];
+  }
+
+  function placeChar(id, x, y) {
+    [x, y] = clampPos(x, y, charRoom[id]);
+    const el = $('ch-' + id);
+    el.style.transition = 'none';
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    requestAnimationFrame(() => { el.style.transition = ''; });
+    roomChars[id] = { x, y };
+  }
+
+  function moveTo(id, tx, ty, cb) {
+    const c = roomChars[id];
+    const el = $('ch-' + id);
+    [tx, ty] = clampPos(tx, ty, charRoom[id]);
+    const dist = Math.hypot(tx - c.x, ty - c.y);
+    if (reduced || dist < 6) { placeChar(id, tx, ty); cb && cb(); return; }
+    const dur = Math.max(350, Math.min(2200, dist * 7));
+    el.classList.toggle('face-left', tx < c.x);
+    el.classList.add('walking');
+    el.style.transition = `left ${dur}ms linear, top ${dur}ms linear`;
+    el.style.left = tx + 'px';
+    el.style.top = ty + 'px';
+    c.x = tx; c.y = ty;
+    setTimeout(() => { el.classList.remove('walking'); cb && cb(); }, dur + 30);
+  }
+
+  // Walk through the doorway into another room, then on to (tx, ty)
+  function hopRoom(id, newRoom, tx, ty, cb) {
+    const { h } = roomSize();
+    charRoom[id] = null; // free movement while crossing
+    moveTo(id, wallX() - CHAR_W / 2, h / 2 - CHAR_H / 2, () => {
+      charRoom[id] = newRoom;
+      moveTo(id, tx, ty, cb);
+    });
+  }
+
+  function scatterCast() {
+    const spots = { rex: [0.2, 0.3], priya: [0.75, 0.35], nova: [0.45, 0.7], june: [0.25, 0.4], zed: [0.7, 0.7] };
+    ORDER.forEach(id => {
+      const z = zoneBounds(charRoom[id]);
+      const [fx, fy] = spots[id];
+      placeChar(id, z.x0 + fx * (z.x1 - z.x0), z.y0 + fy * (z.y1 - z.y0));
+    });
+  }
+
+  function startWander() {
+    setInterval(() => {
+      if (reduced || !$('ch-' + ORDER[0])) return;
+      ORDER.forEach(id => {
+        const el = $('ch-' + id);
+        if (!el || koSet.has(id)) return;
+        if (el.classList.contains('speaking') || el.classList.contains('thinking') || el.classList.contains('walking')) return;
+        if (CHANNELS.some(ch => ch.bubbleSpeaker === id && $(ch.bubbleId).classList.contains('show'))) return;
+        if (Math.random() < 0.2) {
+          const c = roomChars[id];
+          moveTo(id, c.x + (Math.random() * 200 - 100), c.y + (Math.random() * 150 - 75));
+        }
+      });
+    }, 1600);
+  }
+
+  /* ============ Scripts (mocked; the real app generates these) ============ */
+  function makeScripts(topic) {
+    const t = topic.trim().replace(/[.!?]+$/, '') || 'this idea';
+    const A = [
+      { s: 'nova',  k: 'reaction', txt: `Ooh ooh — ${t}?! Okay Room A, we're the vision room. No judging, just dreaming. GO.` },
+      { s: 'rex',   k: 'question', to: 'nova', txt: `Hmm. Devil's advocate: who actually wakes up needing ${t}? Convince me.` },
+      { s: 'nova',  k: 'idea',     to: 'rex',  txt: `What if we launch ${t} as a one-night-only pop-up first? Invite-only, a little mysterious — people fall in love before it even fully exists!` },
+      { s: 'priya', k: 'idea',     txt: `Picture someone stumbling in by accident… I'd hand every first-timer a tiny free ritual — small enough to be free, memorable enough to tell a friend about.` },
+      { s: 'rex',   k: 'reaction', to: 'priya', txt: `Fine, the pop-up and the ritual can live. But what earns visit number two? Nobody's answered that yet.` },
+      { s: 'priya', k: 'idea',     to: 'rex',  txt: `Being *known* earns visit two. The person behind the counter remembers your order, your name, your thing. That's the whole retention strategy.` },
+      { s: 'nova',  k: 'reaction', txt: `Yes!! The pop-up plus being known — it's one idea wearing two hats. I need to hear what Room B has, someone go spy.` },
+      { s: 'nova',  k: 'reaction', to: 'zed', waitFor: 'zedMerged', txt: `A wall of NOTES?! From strangers?! Zed, you beautiful weirdo — okay you're never going back to Room B, you're ours now.` },
+    ];
+    const B = [
+      { s: 'june',  k: 'idea',     txt: `Okay Room B, we're the reality room. Concretely: v1 of ${t} is a landing page and twenty hand-picked regulars. If they come back twice, we build the rest.` },
+      { s: 'zed',   k: 'idea',     to: 'june', txt: `Counter-proposal: a stamped “passport” for ${t}. Ten visits unlocks something nobody is told about in advance. The mystery IS the marketing.` },
+      { s: 'june',  k: 'reaction', to: 'zed', koTarget: 'zed', txt: `Zed. A secret reward nobody knows about is, definitionally, nothing. Walk through the unit economics with me — Zed? …Oh no. I hit him with a spreadsheet.` },
+      { s: 'june',  k: 'reaction', txt: `He's fine. And for the record, cost-per-stamp is zero, so when he gets up I'm approving the passport anyway. Don't tell him it was the math that won.` },
+      { s: 'zed',   k: 'idea',     roomSwitch: 0, to: 'nova', setFlag: 'zedMerged', txt: `I LIVE. And I'm defecting to Room A with my best one: a wall where regulars leave anonymous notes for strangers inside ${t}. Costs nothing. Photographs beautifully.` },
+      { s: 'june',  k: 'reaction', to: 'you', txt: `Room B final report: one landing page, twenty regulars, one approved passport, one defector. Under budget. Naturally.` },
+    ];
+    return { A, B };
+  }
+  const SUMMARY = { s: 'june', k: 'summary', to: 'you', txt: '' }; // txt filled in at session start
+
+  function ackTurn(text, mention) {
+    const quote = text.length > 60 ? text.slice(0, 57) + '…' : text;
+    const who = alivePersona(mention || 'priya');
+    const lines = {
+      nova:  `Ooh, the boss speaks! “${quote}” — okay okay, folding that in, this changes everything (in a good way).`,
+      rex:   `Hmm. “${quote}” — fine, that's fair. Here's the version of that I'd actually defend…`,
+      june:  `Okay, concretely: “${quote}”. Noted. Let me re-scope around that before anyone gets carried away.`,
+      priya: `“${quote}” — I love that you said that. Picture how that lands for the person walking in the door…`,
+      zed:   `“${quote}”?? Total left turn unlocked. Give me a second, I'm splicing that into everything.`,
+    };
+    return { s: who, k: 'reaction', to: 'you', txt: lines[who] };
+  }
+
+  function koReactTurn(victimId) {
+    const victimName = PERSONAS[victimId].name;
+    const lines = {
+      nova:  `${victimName}'s down! Someone write that down — “ideas so powerful they're a safety hazard.” That's the brand now.`,
+      rex:   `Well. ${victimName} is out. Statistically, that improves our average.`,
+      june:  `Okay, ${victimName} is down. Noted, logged, moving on before anyone else gets ideas.`,
+      priya: `${victimName}!! Someone check on them — okay they're fine, they're doing the cartoon swirly eyes. Where were we?`,
+      zed:   `${victimName} has left the physical plane. More room for the rest of us!`,
+    };
+    const roommate = ORDER.find(id => id !== victimId && !koSet.has(id) && charRoom[id] === charRoom[victimId]);
+    const who = roommate || alivePersona('june');
+    return { s: who, k: 'reaction', txt: lines[who] };
+  }
+
+  /* ============ Engine: two parallel channels ============ */
+  const CHANNELS = [
+    { idx: 0, name: 'A', cls: 'ra', bubbleId: 'bubble0', whoId: 'who0', textId: 'text0', chipId: 'actionChip0', script: [], pos: 0, typing: false, done: false, waiting: false, seq: 0, bubbleSpeaker: null, queue: [] },
+    { idx: 1, name: 'B', cls: 'rb', bubbleId: 'bubble1', whoId: 'who1', textId: 'text1', chipId: 'actionChip1', script: [], pos: 0, typing: false, done: false, waiting: false, seq: 0, bubbleSpeaker: null, queue: [] },
+  ];
+  const flags = {};
+  const koSet = new Set();
+  let ideas = 0, wrapped = false, paused = false;
+
+  function alivePersona(preferred) {
+    if (preferred && !koSet.has(preferred)) return preferred;
+    return ORDER.find(id => !koSet.has(id)) || 'june';
+  }
+
+  function channelOf(personaId) {
+    const r = charRoom[personaId];
+    return CHANNELS[r === 1 ? 1 : 0];
+  }
+
+  /* ---------- KO / revive (all cartoon, nobody stays down) ---------- */
+  function addSystem(txt) {
+    const e = document.createElement('div');
+    e.className = 't-entry sys';
+    e.textContent = txt;
+    const list = $('tList');
+    list.appendChild(e);
+    list.scrollTop = list.scrollHeight;
+    $('live').textContent = txt;
+  }
+
+  function koChar(id, reason) {
+    if (koSet.has(id)) return false;
+    koSet.add(id);
+    const el = $('ch-' + id);
+    el.classList.remove('speaking', 'thinking', 'revive');
+    el.classList.add('ko');
+    animators['ch-' + id]?.set('ko');
+    addSystem(`💥 ${PERSONAS[id].name} is knocked out${reason ? ' — ' + reason : ''}!`);
+    return true;
+  }
+
+  function reviveChar(id) {
+    if (!koSet.has(id)) return;
+    koSet.delete(id);
+    const el = $('ch-' + id);
+    el.classList.remove('ko');
+    el.classList.add('revive');
+    animators['ch-' + id]?.set('idle');
+    setTimeout(() => el.classList.remove('revive'), 600);
+    addSystem(`✨ ${PERSONAS[id].name} pops back up, good as new.`);
+  }
+
+  /* ---------- Turn machinery (per channel) ---------- */
+  function showAction(ch, p, targetName) {
+    const chip = $(ch.chipId);
+    chip.style.setProperty('--a-c', `var(--${p.v})`);
+    chip.innerHTML = `<span class="a-who">${p.name}</span> ▸ talk_to(${targetName})`;
+    chip.classList.add('show');
+    setTimeout(() => chip.classList.remove('show'), 2800);
+  }
+
+  function showMoveAction(ch, p, roomName) {
+    const chip = $(ch.chipId);
+    chip.style.setProperty('--a-c', `var(--${p.v})`);
+    chip.innerHTML = `<span class="a-who">${p.name}</span> ▸ move_to(Room ${roomName})`;
+    chip.classList.add('show');
+    setTimeout(() => chip.classList.remove('show'), 2800);
+  }
+
+  function positionBubble(ch, speakerId) {
+    const b = $(ch.bubbleId);
+    const c = roomChars[speakerId];
+    const { w, h } = roomSize();
+    const cx = c.x + CHAR_W / 2;
+    const bw = Math.min(300, w * 0.44);
+    const left = Math.max(10, Math.min(cx - bw / 2, w - bw - 10));
+    b.style.left = left + 'px';
+    b.style.width = bw + 'px';
+    b.style.bottom = (h - c.y + 8) + 'px';
+    b.style.setProperty('--tail-x', (cx - left) + 'px');
+  }
+
+  function setSpeakerState(id, state) {
+    const el = $('ch-' + id);
+    if (!el) return;
+    el.classList.remove('speaking', 'thinking');
+    if (state) el.classList.add(state);
+    if (!koSet.has(id)) animators['ch-' + id]?.set(state === 'speaking' ? 'talk' : 'idle');
+  }
+
+  function schedule(ch, delay) {
+    if (wrapped || ch.done) return;
+    if (paused) { ch.waiting = true; return; }
+    setTimeout(() => nextTurn(ch), delay);
+  }
+
+  function nextTurn(ch) {
+    if (wrapped || ch.done) return;
+    if (paused) { ch.waiting = true; return; }
+    let turn;
+    if (ch.queue.length) {
+      turn = ch.queue.shift();
+    } else if (ch.pos < ch.script.length) {
+      turn = ch.script[ch.pos];
+      if (turn.waitFor && !flags[turn.waitFor]) { schedule(ch, 700); return; }
+      ch.pos++;
+    } else {
+      ch.done = true;
+      maybeWrap();
+      return;
+    }
+    const p = PERSONAS[turn.s];
+    const wasKo = koSet.has(turn.s);
+    if (wasKo) reviveChar(turn.s);
+    setTimeout(() => beginTurn(ch, turn, p), wasKo && !reduced ? 700 : 0);
+  }
+
+  function beginTurn(ch, turn, p) {
+    const seq = ++ch.seq;
+    setSpeakerState(turn.s, 'thinking');
+    const go = () => { if (seq === ch.seq && !wrapped) speak(ch, turn, p); };
+
+    if (turn.roomSwitch !== undefined && charRoom[turn.s] !== turn.roomSwitch) {
+      showMoveAction(ch, p, turn.roomSwitch === 0 ? 'A' : 'B');
+      addSystem(`🚪 ${p.name} heads for Room ${turn.roomSwitch === 0 ? 'A' : 'B'}…`);
+      const targetChar = turn.to && roomChars[turn.to] ? roomChars[turn.to] : null;
+      const z = zoneBounds(turn.roomSwitch);
+      const [tx, ty] = targetChar ? [targetChar.x + CHAR_W + 6, targetChar.y] : [(z.x0 + z.x1) / 2, (z.y0 + z.y1) / 2];
+      hopRoom(turn.s, turn.roomSwitch, tx, ty, () => setTimeout(go, 250));
+      return;
+    }
+
+    let dest = null, targetName = null;
+    if (turn.to === 'you') {
+      const z = zoneBounds(charRoom[turn.s]);
+      dest = [(z.x0 + z.x1) / 2, z.y1];
+      targetName = 'you';
+    } else if (turn.to && !koSet.has(turn.to) && roomChars[turn.to] && charRoom[turn.to] === charRoom[turn.s]) {
+      const t = roomChars[turn.to], me = roomChars[turn.s];
+      dest = [t.x + (me.x < t.x ? -(CHAR_W + 6) : CHAR_W + 6), t.y];
+      targetName = PERSONAS[turn.to].name;
+    }
+    if (targetName) showAction(ch, p, targetName);
+    if (dest) moveTo(turn.s, dest[0], dest[1], () => setTimeout(go, 250));
+    else setTimeout(go, reduced ? 60 : 750);
+  }
+
+  function speak(ch, turn, p) {
+    setSpeakerState(turn.s, 'speaking');
+    ch.bubbleSpeaker = turn.s;
+    // roommates turn to face the speaker
+    ORDER.forEach(id => {
+      if (id === turn.s || koSet.has(id) || charRoom[id] !== charRoom[turn.s]) return;
+      const el = $('ch-' + id);
+      if (el && !el.classList.contains('walking')) el.classList.toggle('face-left', roomChars[turn.s].x < roomChars[id].x);
+    });
+    const b = $(ch.bubbleId);
+    b.style.setProperty('--b-c', `var(--${p.v})`);
+    positionBubble(ch, turn.s);
+    $(ch.whoId).textContent = p.name;
+    const txtEl = $(ch.textId);
+    txtEl.textContent = '';
+    b.classList.add('show');
+    b.classList.remove('done');
+    ch.typing = true;
+
+    const chars = [...turn.txt];
+    let i = 0;
+    const seq = ch.seq;
+    function tick() {
+      if (!ch.typing || seq !== ch.seq) return;
+      if (i >= chars.length) return finishTurn(ch, turn, p);
+      const c = chars[i++];
+      txtEl.textContent += c;
+      setTimeout(tick, reduced ? 0 : ('.?!'.includes(c) ? 280 : (',;—'.includes(c) ? 110 : 21)));
+    }
+    if (reduced) { txtEl.textContent = turn.txt; finishTurn(ch, turn, p); } else tick();
+    b.onclick = () => {
+      if (ch.typing) { ch.typing = false; txtEl.textContent = turn.txt; finishTurn(ch, turn, p); }
+    };
+  }
+
+  function finishTurn(ch, turn, p) {
+    ch.typing = false;
+    $(ch.bubbleId).classList.add('done');
+    setSpeakerState(turn.s, null);
+    addTranscript(ch, p.name, turn.txt, p.v);
+    $('live').textContent = p.name + ': ' + turn.txt;
+    if (turn.k === 'idea') addIdea(turn, p);
+    if (turn.setFlag) flags[turn.setFlag] = true;
+    if (turn.koTarget) setTimeout(() => {
+      if (koChar(turn.koTarget, `felled by ${p.name}'s point`)) {
+        channelOf(turn.koTarget).queue.push(koReactTurn(turn.koTarget));
+      }
+    }, 400);
+    if (turn.k === 'summary') return;
+    setTimeout(() => {
+      if (ch.bubbleSpeaker === turn.s && !ch.typing) $(ch.bubbleId).classList.remove('show');
+    }, 2200);
+    schedule(ch, 1500 + Math.random() * 700);
+  }
+
+  function maybeWrap() {
+    if (wrapped) return;
+    if (CHANNELS.every(ch => ch.done)) doWrap();
+  }
+
+  function doWrap() {
+    if (wrapped) return;
+    wrapped = true;
+    CHANNELS.forEach(ch => { ch.typing = false; ch.seq++; $(ch.bubbleId).classList.remove('show'); });
+    addSystem(`🔔 Wrapping up — everyone to the middle.`);
+    // everyone gathers toward the doorway area
+    const { w, h } = roomSize();
+    ORDER.forEach((id, i) => {
+      if (koSet.has(id)) reviveChar(id);
+      setSpeakerState(id, null);
+      charRoom[id] = null;
+      if (id !== SUMMARY.s) moveTo(id, wallX() - CHAR_W / 2 + (i - 2) * 60, h / 2);
+    });
+    const p = PERSONAS[SUMMARY.s];
+    setSpeakerState(SUMMARY.s, 'thinking');
+    moveTo(SUMMARY.s, w / 2 - CHAR_W / 2, h - CHAR_H - 40, () => {
+      const ch = CHANNELS[0]; // reuse channel A's bubble for the finale
+      ch.seq++;
+      setTimeout(() => speak(ch, SUMMARY, p), 300);
+    });
+  }
+
+  /* ============ Panels ============ */
+  function addTranscript(ch, who, txt, v, isUser) {
+    const e = document.createElement('div');
+    e.className = 't-entry' + (isUser ? ' user' : '');
+    if (v) e.style.setProperty('--t-c', `var(--${v})`);
+    const tag = ch ? `<span class="room-tag ${ch.cls}">${ch.name}</span>` : '';
+    e.innerHTML = `${tag}<span class="t-who">${who}:</span> ${txt.replace(/</g, '&lt;')}`;
+    const list = $('tList');
+    const pinned = list.scrollTop + list.clientHeight >= list.scrollHeight - 40;
+    list.appendChild(e);
+    if (pinned) list.scrollTop = list.scrollHeight;
+  }
+
+  function addIdea(turn, p) {
+    ideas++;
+    $('shelfEmpty')?.remove();
+    $('ideaCount').textContent = ideas + (ideas === 1 ? ' idea' : ' ideas');
+    const card = document.createElement('div');
+    card.className = 'note-card';
+    card.style.setProperty('--n-c', `var(--${p.v})`);
+    card.style.setProperty('--tilt', ((Math.random() * 4) - 2).toFixed(1) + 'deg');
+    const short = turn.txt.length > 110 ? turn.txt.slice(0, 107) + '…' : turn.txt;
+    card.innerHTML = `<div class="n-who">${p.name}</div>${short.replace(/</g, '&lt;')}`;
+    $('shelf').appendChild(card);
+  }
+
+  /* ============ Start ============ */
+  $('startBtn').addEventListener('click', () => {
+    const topic = $('topicInput').value.trim() || "a coffee shop that's only open at night";
+    const scripts = makeScripts(topic);
+    CHANNELS[0].script = scripts.A;
+    CHANNELS[1].script = scripts.B;
+    SUMMARY.txt = `Wrapping up both rooms: launch ${topic} as an invite-only pop-up, keep twenty regulars coming back by actually knowing them, layer in the passport, and let the note wall do the marketing. Two rooms, one plan. Good session, everyone.`;
+    $('topicChip').textContent = topic;
+    $('setup').classList.add('hidden');
+    $('session').classList.add('active');
+    $('dock').style.display = 'flex';
+    renderCast($('cast'), 'ch-');
+    scatterCast();
+    startWander();
+    schedule(CHANNELS[0], 700);
+    schedule(CHANNELS[1], 1900);
+  });
+
+  /* ============ Controls ============ */
+  $('pauseBtn').addEventListener('click', () => {
+    paused = !paused;
+    $('pauseBtn').textContent = paused ? '▶ Resume' : '⏸ Pause';
+    if (!paused) CHANNELS.forEach(ch => { if (ch.waiting) { ch.waiting = false; schedule(ch, 400); } });
+  });
+
+  $('wrapBtn').addEventListener('click', () => {
+    CHANNELS.forEach(ch => { ch.done = true; });
+    doWrap();
+  });
+
+  const byName = name => Object.keys(PERSONAS).find(k => PERSONAS[k].name.toLowerCase() === name.toLowerCase());
+
+  $('interjectForm').addEventListener('submit', ev => {
+    ev.preventDefault();
+    const raw = $('interjectInput').value.trim();
+    if (!raw) return;
+    $('interjectInput').value = '';
+    addTranscript(null, 'You', raw, null, true);
+    $('live').textContent = 'You: ' + raw;
+
+    const koM = raw.match(/^(?:ko|kill|kick|bonk)\s+@?(\w+)\b/i);
+    const revM = raw.match(/^(?:revive|unko|bring\s+back)\s+@?(\w+)\b/i);
+    if (koM && byName(koM[1])) {
+      const target = byName(koM[1]);
+      if (koChar(target, 'the boss said so')) channelOf(target).queue.push(koReactTurn(target));
+      return;
+    }
+    if (revM && byName(revM[1])) { reviveChar(byName(revM[1])); return; }
+
+    let mention = null, text = raw;
+    const m = raw.match(/^@(\w+)\s*/);
+    if (m && byName(m[1])) { mention = byName(m[1]); text = raw.slice(m[0].length) || raw; }
+    const ch = mention ? channelOf(mention) : CHANNELS[0];
+    ch.queue.push(ackTurn(text, mention));
+    // if that room is idle (script done but session not wrapped), poke it
+    if (ch.done && !wrapped) { ch.done = false; schedule(ch, 400); }
+  });
+
+  addEventListener('resize', () => {
+    if (!$('ch-' + ORDER[0])) return;
+    ORDER.forEach(id => { const c = roomChars[id]; if (c) placeChar(id, c.x, c.y); });
+    CHANNELS.forEach(ch => {
+      if (ch.bubbleSpeaker && $(ch.bubbleId).classList.contains('show')) positionBubble(ch, ch.bubbleSpeaker);
+    });
+  });
+</script>
