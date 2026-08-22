@@ -90,13 +90,13 @@ curl http://localhost:8000/api/health
 
 ### Dev mode
 
-`DEV_MODE=1` is the default, and it means nothing calls Mistral: every endpoint
-serves the prewritten panel in `mitral/fixture.py`. Sessions are instant and
-free, which is what you want while working on the UI — but it is always the same
-eight panellists, always talking about a night cafe, whatever topic you type. The
-topic chip reads `dev fixture · no API calls` when it's on.
+`DEV_MODE=1` means nothing calls Mistral: every endpoint serves the prewritten
+panel in `mitral/fixture.py`. Sessions are instant and free, which is what you
+want while working on the UI — but it is always the same eight panellists, always
+talking about a night cafe, whatever topic you type. The topic chip reads
+`dev fixture · no API calls` when it's on.
 
-Set `DEV_MODE=0` in `.env` and restart uvicorn for real generation.
+It is off by default: set `DEV_MODE=1` in `.env` and restart uvicorn to use it.
 
 ### What actually runs
 

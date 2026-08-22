@@ -107,10 +107,6 @@ TurnFn = Callable[[Any, str], dict]
 VoteFn = Callable[[Any, str], bool]
 
 
-class MeetingCancelled(Exception):
-    """Raised between turns when the client has abandoned a live meeting."""
-
-
 class Meeting:
     def __init__(
         self,
@@ -136,7 +132,9 @@ class Meeting:
         self.room_turn_cap = room_turn_cap
         self.total_turn_cap = total_turn_cap
         self.on_event = on_event
-        self.should_stop = should_stop or (lambda: False)
+        # Polled between turns so a hung-up client stops the spend: every turn is
+        # a model call, and the loop would otherwise run to its cap regardless.
+        self.should_stop = should_stop
 
         self.agents = {p.name: AgentState(persona=p) for p in cast}
         self.log: list[Event] = []
@@ -153,15 +151,15 @@ class Meeting:
 
     def run(self) -> MeetingResult:
         while self.result is None:
-            if self.should_stop():
-                raise MeetingCancelled()
+            if self._stopped():
+                return self._halt()
             self.round += 1
             for room in ROOMS:
-                if self.should_stop():
-                    raise MeetingCancelled()
                 occupants = self.occupants(room)
                 if len(occupants) < 2:
                     continue  # invariant 2: no monologues
+                if self._stopped():
+                    return self._halt()
                 self._take_turn(self._pick_speaker(occupants))
                 if self.result:
                     break
@@ -172,6 +170,21 @@ class Meeting:
                 break
             self._resolve_movement()
             self._check_termination()
+        return self.result
+
+    def _stopped(self) -> bool:
+        return bool(self.should_stop and self.should_stop())
+
+    def _halt(self) -> MeetingResult:
+        """Abandon the meeting mid-flight. No session_closed is emitted: nothing
+        was decided, and whoever asked us to stop has stopped listening anyway."""
+        self.result = MeetingResult(
+            answer=None,
+            proposals=list(self.proposals.values()),
+            events=self.log,
+            rounds=self.round,
+            turns=self.turns,
+        )
         return self.result
 
     def occupants(self, room: str) -> list[AgentState]:
@@ -273,6 +286,8 @@ class Meeting:
             p = self.proposals.get(pid)
             if p is None or p.room != room:
                 agent.receipts.append(f"vote ignored: no proposal {pid} in this room")
+            elif not any(voter != p.author for voter in p.votes):
+                agent.receipts.append(f"vote ignored: {pid} needs another panellist's upvote first")
             else:
                 self.pending_votes[room] = {"proposal_id": pid, "caller": agent.name}
                 self._emit(room, "vote_called", agent.name, {"proposal_id": pid})
@@ -324,8 +339,18 @@ class Meeting:
                 continue
             occupants = self.occupants(room)
             voters = [a for a in occupants if a.name != motion["caller"]]
+            alternatives = [
+                other for other in self.proposals.values()
+                if other.room == room and other.id != p.id
+            ]
+            comparison = "\n".join(
+                f'- {other.id} "{other.title}" ({len(other.votes)} upvotes): {other.body}'
+                for other in alternatives
+            ) or "- none"
             question = (
-                f'Vote to adopt proposal {p.id} "{p.title}" and close {room}: {p.body}'
+                f'Vote to adopt proposal {p.id} "{p.title}" and close {room}.\n'
+                f'Candidate ({len(p.votes)} upvotes): {p.body}\n'
+                f'Alternatives still on the table:\n{comparison}'
             )
             yes = 1 + sum(1 for v in voters if self._safe_vote(v, question))
             if yes > len(occupants) / 2:
@@ -540,13 +565,15 @@ Tools (each an object with a "tool" key):
 - {"tool": "call_vote", "proposal_id": "p1"} — the room votes; a majority adopts it and closes the room.
 - {"tool": "done"} — you have nothing further.
 
-Guidance: build on or attack what was actually said. You are allowed and \
-encouraged to leave the plenary for room-a, room-b, or room-c when an idea needs \
-focused work. Invite at least one specific panellist and request join_room; a \
-working room only opens when two or more people can enter together. Use that \
-room to sharpen a proposal, then vote to carry it back to the plenary. Propose \
-when you have something concrete; upvote what deserves it; call a vote when a \
-proposal has clearly won the room; say done when you are repeating yourself. \
+Guidance: build on or attack what was actually said. You are encouraged to \
+leave the plenary for room-a, room-b, or room-c when an idea needs focused \
+work. Invite a specific panellist and request join_room; a working room only \
+opens when at least two people can enter together. Refine the proposal there, \
+then vote to carry it back to the plenary. Propose when you have something \
+concrete and materially different from what is already on the table. \
+Every turn must add a specific critique, tradeoff, test, or improvement rather \
+than paraphrasing or merely agreeing. Upvote what deserves it; call a vote when \
+a proposal has clearly won the room; say done when you are repeating yourself. \
 Do not narrate tool use in your speech."""
 
 VOTE_SYSTEM = """You are a panellist deciding a yes/no vote. Weigh it in \

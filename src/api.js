@@ -31,13 +31,13 @@ export function runMeeting(topic, { panellists, mode }, signal) {
   return post('/api/meeting', { topic, panellists, mode }, signal);
 }
 
-export async function streamMeeting(topic, { panellists, mode, sessionId }, handlers = {}, signal) {
+export async function streamMeeting(topic, { panellists, mode }, handlers = {}, signal) {
   let response;
   try {
     response = await fetch(`${API_URL}/api/meeting/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic, panellists, mode, session_id: sessionId }),
+      body: JSON.stringify({ topic, panellists, mode }),
       signal,
     });
   } catch (exception) {
@@ -71,8 +71,10 @@ export async function streamMeeting(topic, { panellists, mode, sessionId }, hand
   return result;
 }
 
-export function cancelMeeting(sessionId) {
-  return post(`/api/meeting/${encodeURIComponent(sessionId)}/cancel`, {});
+// Tells the backend to abandon a running meeting. Aborting the fetch only stops
+// the playback — the panel keeps calling Mistral server-side until this lands.
+export function stopMeeting(id) {
+  return post('/api/meeting/stop', { id });
 }
 
 // Casts the panel, gets everyone's opening pitch, and runs the deliberation.

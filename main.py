@@ -3,7 +3,7 @@
 The browser never sees the Mistral key: every call goes through here and out via
 `mitral.llm`. Generating a panel is a sequence of a dozen-odd model calls, so the
 session endpoint is slow by design — the UI shows a loading state rather than
-pretending with canned dialogue. The exception is DEV_MODE (on by default), which
+pretending with canned dialogue. The exception is DEV_MODE (off by default), which
 serves the prewritten panel in `mitral.fixture` so the UI can be built instantly.
 """
 import json
@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 
 from mitral.fixture import canned_deliberation, canned_extra, canned_reply, canned_session
 from mitral.llm import MODEL, PROVIDER, configured
-from mitral.meeting import Meeting, MeetingCancelled, llm_turn, llm_vote
+from mitral.meeting import Meeting, llm_turn, llm_vote
 from mitral.mock import MockDriver, mock_cast
 from mitral.personality import (
     MODES,
@@ -62,15 +62,18 @@ class ReplyRequest(BaseModel):
     persona: dict
 
 
+class StopRequest(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+
+
 class MeetingRequest(BaseModel):
     topic: str = Field(min_length=1, max_length=500)
     panellists: int = Field(default=4, ge=2, le=8)
     mode: str = Field(default="grounded")  # cast flavor: grounded | wild
     seed: int | None = None
-    # auto = selected live provider when its key is set, offline mock otherwise
+    # auto = selected provider when its API key is set, offline mock otherwise
     engine: Literal["auto", "mock", "llm"] = "auto"
     plenary_only: bool = False
-    session_id: str | None = Field(default=None, max_length=100)
 
 
 # Vite prints the localhost URL but the browser will happily be pointed at
@@ -86,9 +89,15 @@ DEFAULT_ORIGINS = [
 ]
 
 # Dev mode serves the prewritten panel in mitral.fixture instead of calling
-# Mistral: instant, free, and the same response shape. On by default because
-# that is what you want while building the UI — set DEV_MODE=0 for real output.
-DEV_MODE = os.getenv("DEV_MODE", "1").lower() not in ("0", "false", "no", "")
+# Mistral: instant, free, and the same response shape. Off by default — set
+# DEV_MODE=1 to work on the UI without spending a minute (and money) per run.
+DEV_MODE = os.getenv("DEV_MODE", "0").lower() not in ("0", "false", "no", "")
+
+# Live streams, so the browser can actually call a halt: stream id -> flag that
+# the casting loop and the meeting thread both poll. Without it, hanging up only
+# stops the *playback* — the panel keeps talking to Mistral on our bill until it
+# hits its turn cap.
+_stops: dict[str, threading.Event] = {}
 
 app = FastAPI(title="Brainstorm Stage API", version="2.0.0")
 app.add_middleware(
@@ -98,9 +107,6 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
-
-ACTIVE_MEETINGS: dict[str, threading.Event] = {}
-ACTIVE_MEETINGS_LOCK = threading.Lock()
 
 
 @app.get("/api/health")
@@ -177,13 +183,9 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
     if body.engine == "llm" and not DEV_MODE:
         _require_key()
     seed = body.seed if body.seed is not None else random.randrange(1 << 30)
-    session_id = body.session_id or str(uuid.uuid4())
-    stopped = threading.Event()
-    with ACTIVE_MEETINGS_LOCK:
-        previous = ACTIVE_MEETINGS.get(session_id)
-        if previous:
-            previous.set()
-        ACTIVE_MEETINGS[session_id] = stopped
+    stream_id = uuid.uuid4().hex
+    stop = threading.Event()
+    _stops[stream_id] = stop
 
     def encode(kind: str, **data) -> str:
         return json.dumps({"type": kind, **data}) + "\n"
@@ -191,16 +193,18 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
     def stream():
         cast: list[Persona] = []
         try:
-            yield encode("meta", topic=body.topic, engine="llm" if live else "mock",
-                         model=MODEL if live else "mock", seed=seed, session_id=session_id)
+            yield encode("meta", id=stream_id, topic=body.topic, engine="llm" if live else "mock",
+                         provider=PROVIDER if live else "mock", model=MODEL if live else "mock", seed=seed)
             source = generate_cast_iter(body.topic, body.panellists, seed, body.mode) if live else iter(
                 mock_cast(body.topic, body.panellists, seed, body.mode)
             )
             for person in source:
-                if stopped.is_set():
-                    return
+                if stop.is_set():
+                    return  # stopped mid-casting; each persona is its own model call
                 cast.append(person)
                 yield encode("agent", agent=_agent(person, len(cast) - 1))
+            if stop.is_set():
+                return
 
             if live:
                 turn_fn, vote_fn = llm_turn, llm_vote
@@ -221,11 +225,9 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
                         working_rooms=not body.plenary_only,
                         total_turn_cap=60 if live else 40,
                         on_event=lambda event: updates.put(("event", event.model_dump())),
-                        should_stop=stopped.is_set,
+                        should_stop=stop.is_set,
                     ).run()
                     updates.put(("result", result))
-                except MeetingCancelled:
-                    return
                 except Exception as exc:
                     updates.put(("error", exc))
 
@@ -249,13 +251,10 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
         except Exception as exc:
             yield encode("error", message=_upstream(exc).detail)
         finally:
-            # StreamingResponse closes this generator when fetch is aborted.
-            # The current provider call cannot be interrupted safely, but no
-            # subsequent agent turn or vote will be scheduled after it returns.
-            stopped.set()
-            with ACTIVE_MEETINGS_LOCK:
-                if ACTIVE_MEETINGS.get(session_id) is stopped:
-                    ACTIVE_MEETINGS.pop(session_id, None)
+            # Covers the client simply hanging up as well as the explicit button:
+            # closing the generator lands here and the meeting thread sees the flag.
+            stop.set()
+            _stops.pop(stream_id, None)
 
     return StreamingResponse(
         stream(),
@@ -264,14 +263,14 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
     )
 
 
-@app.post("/api/meeting/{session_id}/cancel")
-def cancel_meeting(session_id: str) -> dict[str, bool]:
-    """Explicitly stop a streamed meeting, even if its HTTP reader is blocked."""
-    with ACTIVE_MEETINGS_LOCK:
-        stopped = ACTIVE_MEETINGS.get(session_id)
-    if stopped:
-        stopped.set()
-    return {"cancelled": stopped is not None}
+@app.post("/api/meeting/stop")
+def meeting_stop(body: StopRequest) -> dict[str, bool]:
+    """Halt a running meeting so it stops spending. Idempotent, and unknown ids
+    are fine — the run may have finished on its own a moment earlier."""
+    stop = _stops.get(body.id)
+    if stop:
+        stop.set()
+    return {"stopped": stop is not None}
 
 
 @app.post("/api/session")
