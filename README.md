@@ -109,4 +109,4 @@ git push -u origin your-name/what-youre-doing
 gh pr create
 ```
 
-Get one review before merging.
+Merge it once it's green — no review required.
