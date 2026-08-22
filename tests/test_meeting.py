@@ -52,7 +52,9 @@ class MeetingDecisionTests(unittest.TestCase):
 
     def test_proposal_prompt_keeps_board_copy_concise(self):
         self.assertIn("title of 2-6 words", TURN_SYSTEM)
-        self.assertIn("one natural sentence of at most 25 words", TURN_SYSTEM)
+        self.assertIn("2-3 natural sentences totaling at most 60 words", TURN_SYSTEM)
+        self.assertIn("why it is the best fit", TURN_SYSTEM)
+        self.assertIn("why the strongest alternatives are worse", TURN_SYSTEM)
         self.assertIn("No headings, bullets, markdown", TURN_SYSTEM)
 
     def test_turn_prompt_treats_user_idea_as_the_brief(self):
