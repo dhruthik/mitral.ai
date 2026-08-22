@@ -10,6 +10,9 @@ header { display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; margin-bo
 header p { color:var(--soft); margin:0; }
 .logo { font-family:Silkscreen,sans-serif; font-weight:700; font-size:1.15rem; }
 .logo span { color:var(--brand); }
+.mistral-credit { margin-left:auto; padding:7px 12px; border:1px solid var(--line); border-radius:100px; color:var(--soft); background:var(--surface); font:700 .65rem Silkscreen; text-decoration:none; transition:.18s ease; }
+.mistral-credit:hover { color:var(--brand); border-color:var(--brand); }
+.mistral-credit:focus-visible { outline:3px solid var(--brand-soft); border-color:var(--brand); }
 .card { background:var(--surface); border:1px solid var(--line); border-radius:22px; box-shadow:var(--shadow); }
 .setup { padding:64px 32px; text-align:center; }
 .eyebrow { color:var(--brand); font-family:Silkscreen; font-size:.68rem; letter-spacing:.06em; }
