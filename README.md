@@ -21,10 +21,27 @@ git clone https://github.com/dhruthik/mitral.ai.git
 cd mitral.ai
 ```
 
-### Get a Mistral API key
+### Choose an AI provider
 
-Everything the panel says comes from Mistral, so you need a key before anything
-runs.
+The panel can run on Mistral or Claude. Set the provider and matching key in
+`.env`:
+
+```env
+LLM_PROVIDER=mistral
+MISTRAL_API_KEY=your-key
+```
+
+or:
+
+```env
+LLM_PROVIDER=claude
+ANTHROPIC_API_KEY=your-key
+```
+
+The default models can be overridden with `MISTRAL_MODEL`,
+`MISTRAL_FAST_MODEL`, `CLAUDE_MODEL`, and `CLAUDE_FAST_MODEL`.
+
+### Get a Mistral API key
 
 1. Sign up at **[console.mistral.ai](https://console.mistral.ai)**.
 2. Go to **API Keys** → **Create new key**, and copy it. You only get to see it

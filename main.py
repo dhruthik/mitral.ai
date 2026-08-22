@@ -20,7 +20,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from mitral.fixture import canned_deliberation, canned_extra, canned_reply, canned_session
-from mitral.llm import MODEL
+from mitral.llm import MODEL, PROVIDER, configured
 from mitral.meeting import Meeting, llm_turn, llm_vote
 from mitral.mock import MockDriver, mock_cast
 from mitral.personality import (
@@ -71,7 +71,7 @@ class MeetingRequest(BaseModel):
     panellists: int = Field(default=4, ge=2, le=8)
     mode: str = Field(default="grounded")  # cast flavor: grounded | wild
     seed: int | None = None
-    # auto = real Mistral panel when MISTRAL_API_KEY is set, offline mock otherwise
+    # auto = selected provider when its API key is set, offline mock otherwise
     engine: Literal["auto", "mock", "llm"] = "auto"
     plenary_only: bool = False
 
@@ -113,7 +113,8 @@ app.add_middleware(
 def health() -> dict[str, object]:
     return {
         "status": "ok",
-        "llm_configured": bool(os.getenv("MISTRAL_API_KEY")),
+        "llm_configured": configured(),
+        "provider": PROVIDER,
         "dev_mode": DEV_MODE,
         "model": _model(),
     }
@@ -131,7 +132,7 @@ def meeting(body: MeetingRequest) -> dict[str, object]:
     # DEV_MODE outranks the engine flag: the whole point is not to spend a minute
     # of sequential Mistral calls (or any credits) every time you reload the UI.
     live = not DEV_MODE and (
-        body.engine == "llm" or (body.engine == "auto" and bool(os.getenv("MISTRAL_API_KEY")))
+        body.engine == "llm" or (body.engine == "auto" and configured())
     )
     if body.engine == "llm" and not DEV_MODE:
         _require_key()
@@ -177,7 +178,7 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
     if body.mode not in MODES:
         raise HTTPException(status_code=422, detail=f"mode must be one of {sorted(MODES)}")
     live = not DEV_MODE and (
-        body.engine == "llm" or (body.engine == "auto" and bool(os.getenv("MISTRAL_API_KEY")))
+        body.engine == "llm" or (body.engine == "auto" and configured())
     )
     if body.engine == "llm" and not DEV_MODE:
         _require_key()
@@ -193,7 +194,7 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
         cast: list[Persona] = []
         try:
             yield encode("meta", id=stream_id, topic=body.topic, engine="llm" if live else "mock",
-                         model=MODEL if live else "mock", seed=seed)
+                         provider=PROVIDER if live else "mock", model=MODEL if live else "mock", seed=seed)
             source = generate_cast_iter(body.topic, body.panellists, seed, body.mode) if live else iter(
                 mock_cast(body.topic, body.panellists, seed, body.mode)
             )
@@ -377,10 +378,11 @@ def _model() -> str:
 
 
 def _require_key() -> None:
-    if not os.getenv("MISTRAL_API_KEY"):
+    if not configured():
+        key_name = "ANTHROPIC_API_KEY" if PROVIDER == "claude" else "MISTRAL_API_KEY"
         raise HTTPException(
             status_code=503,
-            detail="MISTRAL_API_KEY is not set — get one at https://console.mistral.ai and put it in .env",
+            detail=f"{key_name} is not set in .env",
         )
 
 

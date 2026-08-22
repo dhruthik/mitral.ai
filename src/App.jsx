@@ -26,7 +26,6 @@ export default function App() {
   const [mode, setMode] = useState('grounded');
   const [crew, setCrew] = useState([]);
   const [phase, setPhase] = useState('setup'); // setup | casting | running
-  const [paused, setPaused] = useState(false);
   const [entries, setEntries] = useState([]);
   const [ideas, setIdeas] = useState([]);
   const [speaker, setSpeaker] = useState(null);
@@ -41,14 +40,17 @@ export default function App() {
   // spend another credit. Distinct from paused, which only freezes playback.
   const [stopped, setStopped] = useState(false);
   const [message, setMessage] = useState('');
+  // null = the whole meeting; a room id = read that room on its own. Rooms are
+  // genuinely independent server-side, so this is the only way to read one the
+  // way its occupants heard it.
+  const [focusRoom, setFocusRoom] = useState(null);
   const [mentionIndex, setMentionIndex] = useState(0);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [model, setModel] = useState('');
+  const [provider, setProvider] = useState('');
   const session = useRef(null);
   const cancelled = useRef(false);
-  const pausedRef = useRef(false);
-  const skipping = useRef(false);
   const request = useRef(null);
   const streamId = useRef(null);
   // pid → title, so the decision trail can name proposals the way people do
@@ -61,9 +63,9 @@ export default function App() {
   async function start() {
     const cleanTopic = topic.trim() || 'a delightful new community space';
     setTopic(cleanTopic); setPhase('running'); setError('');
-    setPaused(false); pausedRef.current = false; skipping.current = false;
     setWinner(null); setIdeas([]); setEntries([]); setCrew([]); setSpeaker(null); setBubble(null);
     setMilestones([]); setVerdictOpen(false); setClosed(false); setStopped(false);
+    setMessage(''); setProvider(''); setFocusRoom(null);
     cancelled.current = false;
     streamId.current = null;
     titles.current = {};
@@ -79,6 +81,7 @@ export default function App() {
       data = await streamMeeting(cleanTopic, { panellists, mode }, {
         meta: update => {
           streamId.current = update.id;
+          setProvider(update.provider || '');
           setModel(update.engine === 'llm' ? update.model : 'offline demo');
         },
         agent: update => {
@@ -89,10 +92,9 @@ export default function App() {
           addEntry({ type: 'system', text: `✦ ${agent.name} joins the panel — ${agent.role}.` });
         },
         event: async update => {
-          while (pausedRef.current && !cancelled.current) await wait(200);
           if (cancelled.current) return;
           applyEvent(update.event, byName);
-          if (!skipping.current) await wait(DELAYS[update.event.kind] ?? 500);
+          await wait(DELAYS[update.event.kind] ?? 500);
         },
       }, request.current.signal);
     } catch (exception) {
@@ -109,22 +111,25 @@ export default function App() {
   function applyEvent(event, byName) {
     const agent = byName[event.agent];
     const room = roomLabel(event.room);
+    // Both forms: the label is what the reader sees, the id is what the room
+    // filter matches on, so an entry can never drift from the room it happened in.
+    const at = { room, roomId: event.room };
     const data = event.data || {};
     switch (event.kind) {
       case 'spoke':
         setSpeaker(agent?.id ?? null);
         setBubble(agent ? { agent: agent.id, text: data.text, type: 'speech' } : null);
-        addEntry({ who: event.agent, text: data.text, room, color: agent?.color });
+        addEntry({ who: event.agent, text: data.text, ...at, color: agent?.color });
         break;
       case 'proposed':
         titles.current[data.proposal_id] = data.title;
         if (data.carried_from) {
           setIdeas(current => current.map(idea => idea.pid === data.proposal_id ? { ...idea, room, carried: true } : idea));
-          addEntry({ type: 'system', text: `📌 ${event.agent} carries “${data.title}” back to the plenary.` });
+          addEntry({ type: 'system', text: `📌 ${event.agent} carries “${data.title}” back to the plenary.`, ...at });
           addStep({ kind: 'carried', mark: '📌', text: `${event.agent} carries “${data.title}” back to the plenary.` });
         } else {
           setIdeas(current => [...current, { id: id(), pid: data.proposal_id, title: data.title, text: data.body, author: event.agent, room, votes: 0, voters: [], color: agent?.color }]);
-          addEntry({ type: 'action', text: `📝 ${event.agent} pins ${data.proposal_id}: “${data.title}”`, room });
+          addEntry({ type: 'action', text: `📝 ${event.agent} pins ${data.proposal_id}: “${data.title}”`, ...at });
           addStep({ kind: 'proposal', mark: '📝', text: `${event.agent} proposes “${data.title}”.`, room });
         }
         break;
@@ -133,7 +138,7 @@ export default function App() {
         setIdeas(current => current.map(idea => idea.pid === data.proposal_id
           ? { ...idea, votes: idea.votes + 1, voters: [...(idea.voters || []), event.agent] }
           : idea));
-        addEntry({ type: 'action', text: `▲ ${event.agent} upvotes ${data.proposal_id}`, room });
+        addEntry({ type: 'action', text: `▲ ${event.agent} upvotes ${data.proposal_id}`, ...at });
         break;
       case 'joined':
       case 'returned':
@@ -141,7 +146,7 @@ export default function App() {
           const movers = new Set(data.group || [event.agent]);
           setCrew(current => current.map(a => movers.has(a.name) ? { ...a, room: event.room } : a));
         }
-        addEntry({ type: 'action', text: `🚪 ${event.agent} ${event.kind === 'joined' ? 'heads to' : 'returns to'} ${room}`, room });
+        addEntry({ type: 'action', text: `🚪 ${event.agent} ${event.kind === 'joined' ? 'heads to' : 'returns to'} ${room}`, ...at });
         if (event.kind === 'joined' && event.room !== 'plenary') {
           const group = data.group || [event.agent];
           // Every mover in a batch gets its own event carrying the same group;
@@ -152,33 +157,33 @@ export default function App() {
         }
         break;
       case 'invited':
-        addEntry({ type: 'action', text: `✉️ ${event.agent} slips an invitation to ${data.target} — “meet me in ${roomLabel(data.room)}”`, room });
+        addEntry({ type: 'action', text: `✉️ ${event.agent} slips an invitation to ${data.target} — “meet me in ${roomLabel(data.room)}”`, ...at });
         break;
       case 'vote_called':
-        addEntry({ type: 'system', text: `🗳 ${event.agent} calls a vote on ${data.proposal_id} in ${room}.` });
+        addEntry({ type: 'system', text: `🗳 ${event.agent} calls a vote on ${data.proposal_id} in ${room}.`, ...at });
         addStep({ kind: 'vote', mark: '🗳', text: `${event.agent} calls a vote on ${titleOf(data.proposal_id)}.`, room });
         break;
       case 'vote_passed':
-        addEntry({ type: 'system', text: `✅ Vote passes ${data.yes}/${data.of} in ${room}.` });
+        addEntry({ type: 'system', text: `✅ Vote passes ${data.yes}/${data.of} in ${room}.`, ...at });
         addStep({ kind: 'passed', mark: '✅', text: `Carried ${data.yes}–${data.of - data.yes}: ${titleOf(data.proposal_id)}.`, room });
         break;
       case 'vote_failed':
-        addEntry({ type: 'system', text: `❌ Vote fails ${data.yes}/${data.of} in ${room}.` });
+        addEntry({ type: 'system', text: `❌ Vote fails ${data.yes}/${data.of} in ${room}.`, ...at });
         addStep({ kind: 'failed', mark: '❌', text: `Falls ${data.yes}–${data.of - data.yes}: ${titleOf(data.proposal_id)}.`, room });
         break;
       case 'done':
-        addEntry({ type: 'action', text: `🤐 ${event.agent} has nothing further`, room });
+        addEntry({ type: 'action', text: `🤐 ${event.agent} has nothing further`, ...at });
         break;
       case 'kicked':
-        addEntry({ type: 'system', text: `💥 ${event.agent} is voted out of ${room}.` });
+        addEntry({ type: 'system', text: `💥 ${event.agent} is voted out of ${room}.`, ...at });
         addStep({ kind: 'kicked', mark: '💥', text: `${event.agent} is voted out of ${room}.` });
         break;
       case 'room_closed':
-        addEntry({ type: 'system', text: `🔒 ${room} wraps up.` });
+        addEntry({ type: 'system', text: `🔒 ${room} wraps up.`, ...at });
         break;
       case 'session_closed':
         if (data.answer) setWinner(data.answer);
-        addEntry({ type: 'system', text: data.answer ? `🏛 The session closes — ${data.answer} is the panel's answer.` : '🏛 The session closes without an agreed answer.' });
+        addEntry({ type: 'system', text: data.answer ? `🏛 The session closes — ${data.answer} is the panel's answer.` : '🏛 The session closes without an agreed answer.', ...at });
         addStep({ kind: 'closed', mark: '🏛', text: data.answer ? 'The plenary closes and the answer stands.' : 'The plenary closes with nothing carried.' });
         setSpeaker(null);
         setBubble(null);
@@ -193,23 +198,27 @@ export default function App() {
   // The whole run as plain text, for pasting into another model to judge the
   // output. Entries are already in order, so this is just a re-render of them
   // plus the context the transcript itself never spells out.
-  function transcriptText() {
+  function transcriptText(visibleEntries) {
     const lines = [
       `TOPIC: ${topic}`,
       `MODE: ${mode} · ${crew.length} panellists · ${model}`,
+      focusRoom ? `ROOM: ${roomLabel(focusRoom)} only` : 'ROOM: all rooms',
       '',
       'PANEL',
       ...(crew.length ? crew.map(agent => `- ${agent.name} — ${agent.role} [${agent.cognition}]`) : ['(none yet)']),
       '',
       'ACTIVITY',
-      ...entries.map(entry => {
+      ...visibleEntries.map(entry => {
         const room = entry.room ? `[${entry.room}] ` : '';
         return entry.who ? `${room}${entry.who}: ${entry.text}` : `${room}${entry.text}`;
       }),
     ];
-    if (ideas.length) {
+    // Reading one room means reading its board too — a proposal pinned in
+    // room-b was never visible to anyone in room-a.
+    const shown = focusRoom ? ideas.filter(idea => idea.room === roomLabel(focusRoom)) : ideas;
+    if (shown.length) {
       lines.push('', 'PROPOSALS');
-      for (const idea of ideas) {
+      for (const idea of shown) {
         lines.push(`- ${idea.pid} “${idea.title}” — ${idea.author} · ▲${idea.votes}${winner === idea.pid ? ' · WINNER' : ''}`);
         lines.push(`  ${idea.text}`);
       }
@@ -217,8 +226,8 @@ export default function App() {
     return lines.join('\n');
   }
 
-  async function copyTranscript() {
-    const text = transcriptText();
+  async function copyTranscript(visible) {
+    const text = transcriptText(visible);
     try {
       await navigator.clipboard.writeText(text);
     } catch {
@@ -241,22 +250,28 @@ export default function App() {
     event.preventDefault();
     const text = message.trim();
     if (!text || !session.current) return;
-    addEntry({ who: 'You', text, type: 'user' });
-    setMessage('');
     const mentioned = crew.find(agent => text.toLowerCase().includes(`@${agent.name.split(' ')[0].toLowerCase()}`));
     const responder = mentioned || crew[Math.floor(Math.random() * crew.length)];
+    // The exchange belongs to whichever room the responder is standing in, so
+    // it shows up when you read that room alone.
+    const at = { room: roomLabel(responder.room), roomId: responder.room };
+    addEntry({ who: 'You', text, type: 'user', ...at });
+    setMessage('');
     setSpeaker(responder.id);
     setBubble({ agent: responder.id, text: '…', type: 'speech' });
     try {
       const { text: answer } = await replyAs(topic, responder.persona, text.replace(/^@\w+\s*/, ''));
       setBubble({ agent: responder.id, text: answer, type: 'speech' });
-      addEntry({ who: responder.name, text: answer, room: roomLabel(responder.room), color: responder.color });
+      addEntry({ who: responder.name, text: answer, ...at, color: responder.color });
     } catch (exception) {
-      addEntry({ type: 'system', text: `⚠️ ${responder.name} couldn't answer: ${exception.message}` });
+      addEntry({ type: 'system', text: `⚠️ ${responder.name} couldn't answer: ${exception.message}`, ...at });
     } finally {
       setSpeaker(null);
     }
   }
+
+  // Casting notices have no room; they belong to the meeting, not to a room.
+  const visibleEntries = focusRoom ? entries.filter(entry => entry.roomId === focusRoom) : entries;
 
   const mentionMatch = message.match(/(^|\s)@([^\s@]*)$/);
   const mentionQuery = mentionMatch?.[2].toLowerCase() ?? '';
@@ -287,7 +302,6 @@ export default function App() {
   function stop() {
     if (stopped) return;
     setStopped(true);
-    setPaused(false); pausedRef.current = false;
     cancelled.current = true;
     if (streamId.current) stopMeeting(streamId.current).catch(() => {});
     request.current?.abort();
@@ -308,12 +322,12 @@ export default function App() {
       <header>
         <div className="logo">BRAINSTORM STAGE<span>_</span></div>
         <p>One stage, many ways of thinking.</p>
-        <a className="mistral-credit" href="https://mistral.ai" target="_blank" rel="noreferrer">Powered by Mistral AI</a>
+        {provider && provider !== 'mock' && <a className="mistral-credit" href={provider === 'claude' ? 'https://anthropic.com' : 'https://mistral.ai'} target="_blank" rel="noreferrer">Powered by {provider === 'claude' ? 'Claude' : 'Mistral AI'}</a>}
       </header>
       {phase === 'setup' && <Setup {...{ topic, setTopic, panellists, setPanellists, mode, setMode, start, error }} />}
       {phase === 'running' && <main className="session">
         <div className="topic-chip"><small>TOPIC</small>{topic}<span className={`api-state ${stopped ? '' : 'connected'}`}>{stopped ? 'stopped · no API calls' : model}</span></div>
-        <div className="workspace"><Stage crew={crew} activeSpeaker={speaker} bubble={bubble} /><Transcript entries={entries} onCopy={copyTranscript} copied={copied} /></div>
+        <div className="workspace"><Stage crew={crew} activeSpeaker={speaker} bubble={bubble} focusRoom={focusRoom} onFocusRoom={setFocusRoom} /><Transcript entries={visibleEntries} onCopy={() => copyTranscript(visibleEntries)} copied={copied} focusRoom={focusRoom} focusLabel={focusRoom && roomLabel(focusRoom)} onClearFocus={() => setFocusRoom(null)} /></div>
         <IdeaBoard ideas={ideas} winner={winner} />
       </main>}
     </div>
@@ -326,10 +340,9 @@ export default function App() {
     />}
     {phase === 'running' && <footer className="dock"><div className="dock-inner">
       <div className="controls">
-        {!stopped && <button className="button secondary" onClick={() => setPaused(value => { pausedRef.current = !value; return !value; })}>{paused ? '▶ Resume' : '⏸ Pause'}</button>}
         {closed
           ? <button className="button" onClick={() => setVerdictOpen(true)}>🏛 The verdict</button>
-          : !stopped && <button className="button secondary" onClick={() => { skipping.current = true; pausedRef.current = false; setPaused(false); }}>⏭ Skip to verdict</button>}
+          : null}
         {!stopped && !closed && <button className="button danger" onClick={stop} title="End the conversation now — no further AI calls">⏹ Stop</button>}
         <button className="button secondary" onClick={leave}>✕ New session</button>
       </div>

@@ -1,7 +1,7 @@
-"""Thin wrapper around the Mistral chat API.
+"""Thin provider-neutral wrapper around the configured chat API.
 
-Everything else in the project goes through here, so swapping providers is a
-one-file change.
+Everything else in the project goes through ``complete_json``. Select Mistral
+or Claude with ``LLM_PROVIDER`` without changing the meeting code.
 """
 
 import json
@@ -10,27 +10,51 @@ import time
 
 from dotenv import load_dotenv
 from mistralai import Mistral
-from mistralai.models import SDKError
 
 load_dotenv()
 
-MODEL = "mistral-large-latest"
+PROVIDER = os.getenv("LLM_PROVIDER", "mistral").strip().lower()
+if PROVIDER not in {"mistral", "claude"}:
+    raise RuntimeError("LLM_PROVIDER must be 'mistral' or 'claude'")
+
+MODEL = (
+    os.getenv("CLAUDE_MODEL", "claude-sonnet-5")
+    if PROVIDER == "claude"
+    else os.getenv("MISTRAL_MODEL", "mistral-large-latest")
+)
 
 # Writing a personality is a small, high-volume job — a dozen calls per session,
 # each one a short character sketch. The small model does it just as well and
 # several times faster, which is most of the wait on a new session.
-FAST_MODEL = "mistral-small-latest"
+FAST_MODEL = (
+    os.getenv("CLAUDE_FAST_MODEL", "claude-haiku-4-5")
+    if PROVIDER == "claude"
+    else os.getenv("MISTRAL_FAST_MODEL", "mistral-small-latest")
+)
 
-_client: Mistral | None = None
+_client = None
 
 
-def client() -> Mistral:
+def configured() -> bool:
+    key_name = "ANTHROPIC_API_KEY" if PROVIDER == "claude" else "MISTRAL_API_KEY"
+    return bool(os.getenv(key_name))
+
+
+def client():
     global _client
     if _client is None:
-        key = os.environ.get("MISTRAL_API_KEY")
-        if not key:
-            raise RuntimeError("MISTRAL_API_KEY is not set — grab one from console.mistral.ai")
-        _client = Mistral(api_key=key)
+        if PROVIDER == "claude":
+            from anthropic import Anthropic
+
+            key = os.environ.get("ANTHROPIC_API_KEY")
+            if not key:
+                raise RuntimeError("ANTHROPIC_API_KEY is not set")
+            _client = Anthropic(api_key=key)
+        else:
+            key = os.environ.get("MISTRAL_API_KEY")
+            if not key:
+                raise RuntimeError("MISTRAL_API_KEY is not set — grab one from console.mistral.ai")
+            _client = Mistral(api_key=key)
     return _client
 
 
@@ -51,6 +75,18 @@ def complete_json(
     """
     for attempt in range(retries):
         try:
+            if PROVIDER == "claude":
+                # Sonnet 5 rejects non-default sampling parameters, and Claude
+                # does not support Mistral's random_seed parameter.
+                resp = client().messages.create(
+                    model=model,
+                    max_tokens=2_048,
+                    system=system + "\n\nReturn only the requested valid JSON object, with no markdown fences.",
+                    messages=[{"role": "user", "content": user}],
+                )
+                text = "".join(block.text for block in resp.content if block.type == "text")
+                return _as_object(_parse_json(text))
+
             resp = client().chat.complete(
                 model=model,
                 messages=[
@@ -62,11 +98,23 @@ def complete_json(
                 random_seed=seed,
             )
             return _as_object(json.loads(resp.choices[0].message.content))
-        except SDKError as e:
-            if e.status_code != 429 or attempt == retries - 1:
+        except Exception as e:
+            status = getattr(e, "status_code", None)
+            if status != 429 or attempt == retries - 1:
                 raise
             time.sleep(2**attempt)
     raise AssertionError("unreachable")
+
+
+def _parse_json(text: str) -> object:
+    """Extract an object if a provider surrounds its JSON with prose/fences."""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        start, end = text.find("{"), text.rfind("}")
+        if start < 0 or end < start:
+            raise
+        return json.loads(text[start:end + 1])
 
 
 def _as_object(data: object) -> dict:
