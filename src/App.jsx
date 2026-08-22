@@ -3,7 +3,7 @@ import Setup from './components/Setup';
 import Stage from './components/Stage';
 import { IdeaBoard, Transcript } from './components/Panels';
 import Verdict from './components/Verdict';
-import { streamMeeting, replyAs } from './api';
+import { streamMeeting, replyAs, stopMeeting } from './api';
 import { decorateAgents } from './data';
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -36,6 +36,9 @@ export default function App() {
   const [milestones, setMilestones] = useState([]);
   const [verdictOpen, setVerdictOpen] = useState(false);
   const [closed, setClosed] = useState(false);
+  // Stopped for good: the panel is halted server-side and nothing here will
+  // spend another credit. Distinct from paused, which only freezes playback.
+  const [stopped, setStopped] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [model, setModel] = useState('');
@@ -44,6 +47,7 @@ export default function App() {
   const pausedRef = useRef(false);
   const skipping = useRef(false);
   const request = useRef(null);
+  const streamId = useRef(null);
   // pid → title, so the decision trail can name proposals the way people do
   // rather than echoing "p3" at the reader.
   const titles = useRef({});
@@ -56,8 +60,9 @@ export default function App() {
     setTopic(cleanTopic); setPhase('running'); setError('');
     setPaused(false); pausedRef.current = false; skipping.current = false;
     setWinner(null); setIdeas([]); setEntries([]); setCrew([]); setSpeaker(null); setBubble(null);
-    setMilestones([]); setVerdictOpen(false); setClosed(false);
+    setMilestones([]); setVerdictOpen(false); setClosed(false); setStopped(false);
     cancelled.current = false;
+    streamId.current = null;
     titles.current = {};
     request.current?.abort();
     request.current = new AbortController();
@@ -69,7 +74,10 @@ export default function App() {
     let data;
     try {
       data = await streamMeeting(cleanTopic, { panellists, mode }, {
-        meta: update => setModel(update.engine === 'llm' ? update.model : 'offline demo'),
+        meta: update => {
+          streamId.current = update.id;
+          setModel(update.engine === 'llm' ? update.model : 'offline demo');
+        },
         agent: update => {
           const agent = decorateAgents([update.agent])[0];
           byName[agent.name] = agent;
@@ -200,8 +208,24 @@ export default function App() {
     }
   }
 
+  // The hard stop: tell the backend to abandon the meeting, hang up, and put the
+  // room in a state where nothing left on screen can start another model call.
+  function stop() {
+    if (stopped) return;
+    setStopped(true);
+    setPaused(false); pausedRef.current = false;
+    cancelled.current = true;
+    if (streamId.current) stopMeeting(streamId.current).catch(() => {});
+    request.current?.abort();
+    setSpeaker(null); setBubble(null);
+    addEntry({ type: 'system', text: '⏹ Session stopped. The panel is done and no further AI calls will be made.' });
+  }
+
   function leave() {
     cancelled.current = true; request.current?.abort(); session.current = null;
+    // Walking away has to stop the spend too, not just the playback.
+    if (streamId.current) stopMeeting(streamId.current).catch(() => {});
+    streamId.current = null;
     setPhase('setup'); setSpeaker(null); setBubble(null);
   }
 
@@ -210,7 +234,7 @@ export default function App() {
       <header><div className="logo">BRAINSTORM STAGE<span>_</span></div><p>One stage, many ways of thinking.</p></header>
       {phase === 'setup' && <Setup {...{ topic, setTopic, panellists, setPanellists, mode, setMode, start, error }} />}
       {phase === 'running' && <main className="session">
-        <div className="topic-chip"><small>TOPIC</small>{topic}<span className="api-state connected">{model}</span></div>
+        <div className="topic-chip"><small>TOPIC</small>{topic}<span className={`api-state ${stopped ? '' : 'connected'}`}>{stopped ? 'stopped · no API calls' : model}</span></div>
         <div className="workspace"><Stage crew={crew} activeSpeaker={speaker} bubble={bubble} /><Transcript entries={entries} /></div>
         <IdeaBoard ideas={ideas} winner={winner} />
       </main>}
@@ -224,13 +248,14 @@ export default function App() {
     />}
     {phase === 'running' && <footer className="dock"><div className="dock-inner">
       <div className="controls">
-        <button className="button secondary" onClick={() => setPaused(value => { pausedRef.current = !value; return !value; })}>{paused ? '▶ Resume' : '⏸ Pause'}</button>
+        {!stopped && <button className="button secondary" onClick={() => setPaused(value => { pausedRef.current = !value; return !value; })}>{paused ? '▶ Resume' : '⏸ Pause'}</button>}
         {closed
           ? <button className="button" onClick={() => setVerdictOpen(true)}>🏛 The verdict</button>
-          : <button className="button secondary" onClick={() => { skipping.current = true; pausedRef.current = false; setPaused(false); }}>⏭ Skip to verdict</button>}
+          : !stopped && <button className="button secondary" onClick={() => { skipping.current = true; pausedRef.current = false; setPaused(false); }}>⏭ Skip to verdict</button>}
+        {!stopped && !closed && <button className="button danger" onClick={stop} title="End the conversation now — no further AI calls">⏹ Stop</button>}
         <button className="button secondary" onClick={leave}>✕ New session</button>
       </div>
-      <form onSubmit={interject}><input value={message} onChange={event => setMessage(event.target.value)} placeholder="Jump in… @mention any agent" aria-label="Message the group" /><button className="button">Say it</button></form>
+      {!stopped && <form onSubmit={interject}><input value={message} onChange={event => setMessage(event.target.value)} placeholder="Jump in… @mention any agent" aria-label="Message the group" /><button className="button">Say it</button></form>}
     </div></footer>}
   </>;
 }
