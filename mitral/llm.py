@@ -66,11 +66,16 @@ def complete_json(
 def _as_object(data: object) -> dict:
     """JSON mode guarantees valid JSON, not a top-level object.
 
-    The model occasionally wraps a single result in an array, so unwrap that
-    case rather than letting callers trip over it.
+    The model occasionally wraps a single result in an array, or in a
+    one-key envelope it invented ({"panellists": [...]}), so unwrap those
+    cases rather than letting callers trip over them.
     """
-    if isinstance(data, list) and len(data) == 1 and isinstance(data[0], dict):
-        return data[0]
+    if isinstance(data, list) and data and isinstance(data[0], dict):
+        return _as_object(data[0])
+    if isinstance(data, dict) and len(data) == 1:
+        inner = next(iter(data.values()))
+        if isinstance(inner, dict) or (isinstance(inner, list) and inner):
+            return _as_object(inner)
     if not isinstance(data, dict):
         raise ValueError(f"expected a JSON object, got {type(data).__name__}: {data!r:.200}")
     return data
