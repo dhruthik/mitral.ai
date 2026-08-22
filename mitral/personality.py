@@ -17,7 +17,7 @@ import random
 
 from pydantic import BaseModel, Field
 
-from .llm import complete_json
+from .llm import FAST_MODEL, complete_json
 
 # How the agent actually generates ideas. Dealt without replacement.
 COGNITION = [
@@ -143,7 +143,9 @@ class Persona(BaseModel):
     traits: Traits
 
 
-def sample_traits(n: int, rng: random.Random, mode: str = "grounded") -> list[Traits]:
+def sample_traits(
+    n: int, rng: random.Random, mode: str = "grounded", used: list[Traits] | None = None
+) -> list[Traits]:
     """Deal n orthogonal trait sets.
 
     Dominance is the one axis we don't leave to chance: exactly one agent gets
@@ -153,10 +155,19 @@ def sample_traits(n: int, rng: random.Random, mode: str = "grounded") -> list[Tr
     if mode not in MODES:
         raise ValueError(f"unknown mode {mode!r}, expected one of {sorted(MODES)}")
     lens_pool, voice_pool = MODES[mode]
-    if n > min(len(COGNITION), len(lens_pool), len(voice_pool)):
-        raise ValueError(f"can't deal {n} distinct agents from the trait pools")
+    if used:
+        # Adding to a live panel: the traits already in the room are spent, so
+        # the newcomer stays orthogonal to everyone rather than to nobody.
+        spent_cog = {t.cognition for t in used}
+        cognition_pool = [c for c in COGNITION if c[0] not in spent_cog]
+        lens_pool = [l for l in lens_pool if l not in {t.lens for t in used}]
+        voice_pool = [v for v in voice_pool if v not in {t.voice for t in used}]
+    else:
+        cognition_pool = COGNITION
+    if n > min(len(cognition_pool), len(lens_pool), len(voice_pool)):
+        raise ValueError("the trait pools are exhausted — that's as big as a panel gets")
 
-    cognitions = rng.sample(COGNITION, n)
+    cognitions = rng.sample(cognition_pool, n)
     lenses = rng.sample(lens_pool, n)
     voices = rng.sample(voice_pool, n)
 
@@ -185,7 +196,15 @@ Hard rules:
 - The voice is a delivery style, NOT their intelligence. A character with a \
 comic voice must still produce genuinely sharp, useful ideas — they just phrase \
 them funny. Never write a character whose contribution is only jokes.
-- Do not name them after their trait. No "Riley Risk", no "Dr. Contrarian".
+- Do NOT give them a human name. Never "Marcus Chen", never "Sarah Patel". \
+Each panellist is known by a title: "The" plus one evocative noun — The Dreamer, \
+The Whisperer, The Undertaker, The Cartographer, The Magpie, The Lighthouse \
+Keeper. Two or three words at most.
+- The noun should hint at how they think or what they care about without \
+naming the trait outright. "The Locksmith" for someone adversarial, yes; \
+"The Adversarial One", no.
+- Every title on one panel must be a different noun, and none may repeat a \
+title already used above.
 - Give them a specific past, not a vague one. "Ran logistics for a touring \
 circus" beats "has experience in operations".
 
@@ -202,7 +221,15 @@ Hard rules:
 funny one is still sharp; the cautious one still ships things.
 - They are credible on the topic at hand. Give them plausible relevant \
 experience, not an exotic backstory.
-- Do not name them after their trait. No "Riley Risk", no "Dr. Contrarian".
+- Do NOT give them a human name. Never "Marcus Chen", never "Sarah Patel". \
+Each panellist is known by a title: "The" plus one evocative noun — The Dreamer, \
+The Whisperer, The Undertaker, The Cartographer, The Magpie, The Lighthouse \
+Keeper. Two or three words at most.
+- The noun should hint at how they think or what they care about without \
+naming the trait outright. "The Locksmith" for someone adversarial, yes; \
+"The Adversarial One", no.
+- Every title on one panel must be a different noun, and none may repeat a \
+title already used above.
 - What makes them distinct is what they push for and what they refuse to let \
 slide, not an accent or a catchphrase.
 
@@ -273,6 +300,27 @@ def _collides(p: Persona, cast: list[Persona]) -> str | None:
     return None
 
 
+def _write_persona(
+    traits: Traits, topic: str, cast: list[Persona], seed: int | None, mode: str
+) -> Persona:
+    """One panellist who isn't a copy of anyone already in the room."""
+    prompt = _prompt(traits, topic, cast)
+    for _ in range(3):
+        data = complete_json(_system(mode), prompt, seed=seed, model=FAST_MODEL)
+        person = Persona(**data, traits=traits)
+        clash = _collides(person, cast)
+        if clash is None:
+            return person
+        # Nudge off the collision and re-roll the sampler by dropping the seed.
+        prompt += (
+            f"\n\nYour last attempt reused {clash}. Write a completely "
+            "different person: different name, different career, different city, "
+            "different decade of experience."
+        )
+        seed = None
+    return person
+
+
 def generate_cast(
     topic: str, n: int = 5, seed: int | None = None, mode: str = "grounded"
 ) -> list[Persona]:
@@ -280,22 +328,17 @@ def generate_cast(
     rng = random.Random(seed)
     cast: list[Persona] = []
     for traits in sample_traits(n, rng, mode):
-        prompt = _prompt(traits, topic, cast)
-        for attempt in range(3):
-            data = complete_json(_system(mode), prompt, seed=seed)
-            person = Persona(**data, traits=traits)
-            clash = _collides(person, cast)
-            if clash is None:
-                break
-            # Nudge off the collision and re-roll the sampler by dropping the seed.
-            prompt += (
-                f"\n\nYour last attempt reused {clash}. Write a completely "
-                "different person: different name, different career, different city, "
-                "different decade of experience."
-            )
-            seed = None
-        cast.append(person)
+        cast.append(_write_persona(traits, topic, cast, seed, mode))
     return cast
+
+
+def add_panellist(
+    topic: str, cast: list[Persona], seed: int | None = None, mode: str = "grounded"
+) -> Persona:
+    """One more panellist for a panel that's already running."""
+    rng = random.Random(seed)
+    traits = sample_traits(1, rng, mode, used=[p.traits for p in cast])[0]
+    return _write_persona(traits, topic, cast, seed, mode)
 
 
 class Pitch(BaseModel):
@@ -364,12 +407,18 @@ def _pitch_prompt(p: Persona, topic: str, said: list[tuple[Persona, Pitch]]) -> 
     return "\n".join(lines)
 
 
+def one_take(
+    p: Persona, topic: str, said: list[tuple[Persona, Pitch]], seed: int | None = None
+) -> Pitch:
+    """A single opening idea, told what's already been said so it doesn't repeat it."""
+    return Pitch(**complete_json(PITCH_SYSTEM, _pitch_prompt(p, topic, said), seed=seed))
+
+
 def first_takes(cast: list[Persona], topic: str, seed: int | None = None) -> list[Pitch]:
     """Each panellist's opening idea, in order, each aware of what came before."""
     said: list[tuple[Persona, Pitch]] = []
     for p in cast:
-        data = complete_json(PITCH_SYSTEM, _pitch_prompt(p, topic, said), seed=seed)
-        said.append((p, Pitch(**data)))
+        said.append((p, one_take(p, topic, said, seed)))
     return [q for _, q in said]
 
 
