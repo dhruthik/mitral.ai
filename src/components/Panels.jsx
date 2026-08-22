@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import Markdown from './Markdown';
 
-export function Transcript({ entries, onCopy, copied }) {
+export function Transcript({ entries, onCopy, copied, focusRoom, focusLabel, onClearFocus }) {
   const list = useRef(null);
   useEffect(() => {
     const element = list.current;
@@ -10,10 +10,14 @@ export function Transcript({ entries, onCopy, copied }) {
     element.scrollTo({ top: element.scrollHeight, behavior: reduced ? 'auto' : 'smooth' });
   }, [entries.length]);
   return <aside className="transcript card">
-    <h2>Chat <button type="button" className="copy-log" onClick={onCopy} disabled={!entries.length}>{copied ? '✓ Copied' : '⧉ Copy log'}</button></h2>
+    <h2>{focusRoom ? focusLabel : 'Chat'} <button type="button" className="copy-log" onClick={onCopy} disabled={!entries.length}>{copied ? '✓ Copied' : '⧉ Copy log'}</button></h2>
+    {focusRoom && <button type="button" className="room-filter" onClick={onClearFocus}>
+      Only what was said in {focusLabel} <span>✕ all rooms</span>
+    </button>}
     <div ref={list} className="transcript-list" aria-live="polite">
+      {!entries.length && focusRoom && <p className="empty">Nothing has been said in {focusLabel} yet.</p>}
       {entries.map(entry => <div className={`entry ${entry.type || ''}`} key={entry.id} style={{ '--entry': entry.color }}>
-        {entry.room && <span className="room-tag">{entry.room}</span>}
+        {entry.room && !focusRoom && <span className="room-tag">{entry.room}</span>}
         {entry.who && <strong>{entry.who}: </strong>}<Markdown text={entry.text} />
       </div>)}
     </div>
