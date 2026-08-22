@@ -62,6 +62,12 @@ class MeetingDecisionTests(unittest.TestCase):
         self.assertIn("Direct most criticism at the other panellists", TURN_SYSTEM)
         self.assertIn("preserves their intent", TURN_SYSTEM)
 
+    def test_turn_prompt_encourages_agents_to_mingle_and_contribute(self):
+        self.assertIn("Bring your own ideas and pursue them", TURN_SYSTEM)
+        self.assertIn("cooperating with the other panellists", TURN_SYSTEM)
+        self.assertIn("Use room-a, room-b, and room-c proactively", TURN_SYSTEM)
+        self.assertIn("mingle in small groups", TURN_SYSTEM)
+
 
 class RoomIsolationTests(unittest.TestCase):
     """The promise the UI's per-room transcript rests on: what is said in a
