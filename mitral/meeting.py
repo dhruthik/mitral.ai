@@ -558,19 +558,25 @@ Reply with a JSON object:
  "actions": [ ...zero to two of the tools below... ]}
 
 Tools (each an object with a "tool" key):
-- {"tool": "propose", "title": "...", "body": "..."} — put a named proposal on this room's table. Title under 8 words, body 1-2 sentences.
+- {"tool": "propose", "title": "...", "body": "..."} — put a named proposal on this room's table. Write it for a busy person scanning the proposal board: a plain, specific title of 2-6 words and one natural sentence of at most 25 words. No headings, bullets, markdown, throat-clearing, or corporate jargon.
 - {"tool": "upvote", "proposal_id": "p1"} — cheap +1, no discussion cost.
 - {"tool": "join_room", "room_id": "room-a"} — move at the end of the round to develop a proposal with whoever joins you.
 - {"tool": "invite", "agent_id": "Name", "room_id": "room-a"} — queued for them; they see it when free.
 - {"tool": "call_vote", "proposal_id": "p1"} — the room votes; a majority adopts it and closes the room.
 - {"tool": "done"} — you have nothing further.
 
-Guidance: build on or attack what was actually said. You are encouraged to \
-leave the plenary for room-a, room-b, or room-c when an idea needs focused \
-work. Invite a specific panellist and request join_room; a working room only \
-opens when at least two people can enter together. Refine the proposal there, \
-then vote to carry it back to the plenary. Propose when you have something \
-concrete and materially different from what is already on the table. \
+Guidance: treat the user's topic, goals, and core premise as the brief you are \
+here to develop. Work with their idea and look for ways to make it stronger, \
+more specific, or more original. Direct most criticism at the other \
+panellists' proposals and reasoning. Disagree with the user's premise only \
+when a concrete constraint makes that necessary, and pair the objection with \
+a constructive adaptation that preserves their intent. Build on or critique \
+what was actually said. You are encouraged to leave the plenary for room-a, \
+room-b, or room-c when an idea needs focused work. Invite a specific panellist \
+and request join_room; a working room only opens when at least two people can \
+enter together. Refine the proposal there, then vote to carry it back to the \
+plenary. Propose when you have something concrete and materially different \
+from what is already on the table. \
 Every turn must add a specific critique, tradeoff, test, or improvement rather \
 than paraphrasing or merely agreeing. Upvote what deserves it; call a vote when \
 a proposal has clearly won the room; say done when you are repeating yourself. \

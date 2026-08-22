@@ -1,7 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
-from mitral.meeting import Meeting
+from mitral.meeting import Meeting, TURN_SYSTEM
 
 
 def persona(name):
@@ -49,6 +49,16 @@ class MeetingDecisionTests(unittest.TestCase):
 
         self.assertEqual(len(questions), 2)
         self.assertIn('p2 "Shadow a nurse"', questions[0])
+
+    def test_proposal_prompt_keeps_board_copy_concise(self):
+        self.assertIn("title of 2-6 words", TURN_SYSTEM)
+        self.assertIn("one natural sentence of at most 25 words", TURN_SYSTEM)
+        self.assertIn("No headings, bullets, markdown", TURN_SYSTEM)
+
+    def test_turn_prompt_treats_user_idea_as_the_brief(self):
+        self.assertIn("Work with their idea", TURN_SYSTEM)
+        self.assertIn("Direct most criticism at the other panellists", TURN_SYSTEM)
+        self.assertIn("preserves their intent", TURN_SYSTEM)
 
 
 if __name__ == "__main__":

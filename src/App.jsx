@@ -40,6 +40,7 @@ export default function App() {
   // spend another credit. Distinct from paused, which only freezes playback.
   const [stopped, setStopped] = useState(false);
   const [message, setMessage] = useState('');
+  const [mentionIndex, setMentionIndex] = useState(0);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [model, setModel] = useState('');
@@ -255,6 +256,30 @@ export default function App() {
     }
   }
 
+  const mentionMatch = message.match(/(^|\s)@([^\s@]*)$/);
+  const mentionQuery = mentionMatch?.[2].toLowerCase() ?? '';
+  const mentionOptions = mentionMatch
+    ? crew.filter(agent => `${agent.name} ${agent.role}`.toLowerCase().includes(mentionQuery))
+    : [];
+
+  function chooseMention(agent) {
+    const firstName = agent.name.split(' ')[0];
+    setMessage(current => current.replace(/(^|\s)@([^\s@]*)$/, `$1@${firstName} `));
+    setMentionIndex(0);
+  }
+
+  function handleMessageKeyDown(event) {
+    if (!mentionOptions.length) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const direction = event.key === 'ArrowDown' ? 1 : -1;
+      setMentionIndex(current => (current + direction + mentionOptions.length) % mentionOptions.length);
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      chooseMention(mentionOptions[mentionIndex] || mentionOptions[0]);
+    }
+  }
+
   // The hard stop: tell the backend to abandon the meeting, hang up, and put the
   // room in a state where nothing left on screen can start another model call.
   function stop() {
@@ -304,7 +329,20 @@ export default function App() {
         {!stopped && !closed && <button className="button danger" onClick={stop} title="End the conversation now — no further AI calls">⏹ Stop</button>}
         <button className="button secondary" onClick={leave}>✕ New session</button>
       </div>
-      {!stopped && <form onSubmit={interject}><input value={message} onChange={event => setMessage(event.target.value)} placeholder="Jump in… @mention any agent" aria-label="Message the group" /><button className="button">Say it</button></form>}
+      {!stopped && <form onSubmit={interject}><div className="message-field">
+        {mentionOptions.length > 0 && <div className="mention-menu" role="listbox" aria-label="Agents">
+          {mentionOptions.map((agent, index) => <button
+            type="button"
+            role="option"
+            aria-selected={index === mentionIndex}
+            className={index === mentionIndex ? 'selected' : ''}
+            key={agent.id}
+            onMouseDown={event => event.preventDefault()}
+            onClick={() => chooseMention(agent)}
+          ><span style={{ '--agent': agent.color }}>@{agent.name.split(' ')[0]}</span><small>{agent.name} · {agent.role}</small></button>)}
+        </div>}
+        <input value={message} onChange={event => { setMessage(event.target.value); setMentionIndex(0); }} onKeyDown={handleMessageKeyDown} placeholder="Jump in… @mention any agent" aria-label="Message the group" aria-autocomplete="list" aria-expanded={mentionOptions.length > 0} />
+      </div><button className="button">Say it</button></form>}
     </div></footer>}
   </>;
 }
