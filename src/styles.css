@@ -101,6 +101,8 @@ input:focus { border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft);
 .controls { display:flex; gap:8px; }
 .dock form { display:flex; gap:8px; flex:1; }
 .dock form input { flex:1; }
+.casting-line { animation:casting-in .45s ease-out; }
+@keyframes casting-in { from { opacity:0; transform:translateY(6px); } }
 @keyframes float { 50% { transform:translateY(-4px); } }
 @keyframes talk { to { transform:translateY(-3px) rotate(2deg); } }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; } }
