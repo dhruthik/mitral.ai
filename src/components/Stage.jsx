@@ -1,4 +1,5 @@
 import Avatar from './Avatar';
+import StageDecor from './StageDecor';
 
 const ROOMS = [
   ['plenary', 'Plenary'],
@@ -9,6 +10,7 @@ const ROOMS = [
 
 export default function Stage({ crew, activeSpeaker, bubble }) {
   return <section className="stage card" aria-label="Brainstorm stage">
+    <StageDecor />
     <div className="stage-heading">
       <span className="stage-light" />
       <h2>Live brainstorm</h2>
@@ -19,6 +21,7 @@ export default function Stage({ crew, activeSpeaker, bubble }) {
         const here = crew.filter(agent => agent.room === roomId);
         return <div key={roomId} className={`room ${roomId} ${here.length ? '' : 'empty'}`}>
           <h3>{label}</h3>
+          <div className="table" aria-hidden="true" />
           <div className="room-cast">
             {here.map(agent => <Avatar key={agent.id} agent={agent} speaking={activeSpeaker === agent.id} bubble={bubble?.agent === agent.id ? bubble : null} />)}
           </div>
