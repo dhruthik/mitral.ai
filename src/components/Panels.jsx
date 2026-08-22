@@ -1,6 +1,6 @@
-export function Transcript({ entries }) {
+export function Transcript({ entries, onCopy, copied }) {
   return <aside className="transcript card">
-    <h2>Chat <span>all rooms</span></h2>
+    <h2>Chat <button type="button" className="copy-log" onClick={onCopy} disabled={!entries.length}>{copied ? '✓ Copied' : '⧉ Copy log'}</button></h2>
     <div className="transcript-list" aria-live="polite">
       {entries.map(entry => <div className={`entry ${entry.type || ''}`} key={entry.id} style={{ '--entry': entry.color }}>
         {entry.room && <span className="room-tag">{entry.room}</span>}
