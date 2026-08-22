@@ -280,7 +280,11 @@ export default function App() {
 
   return <>
     <div className="app-shell">
-      <header><div className="logo">BRAINSTORM STAGE<span>_</span></div><p>One stage, many ways of thinking.</p></header>
+      <header>
+        <div className="logo">BRAINSTORM STAGE<span>_</span></div>
+        <p>One stage, many ways of thinking.</p>
+        <a className="mistral-credit" href="https://mistral.ai" target="_blank" rel="noreferrer">Powered by Mistral AI</a>
+      </header>
       {phase === 'setup' && <Setup {...{ topic, setTopic, panellists, setPanellists, mode, setMode, start, error }} />}
       {phase === 'running' && <main className="session">
         <div className="topic-chip"><small>TOPIC</small>{topic}<span className={`api-state ${stopped ? '' : 'connected'}`}>{stopped ? 'stopped · no API calls' : model}</span></div>
