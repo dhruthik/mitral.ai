@@ -42,6 +42,5 @@ export default function Stage({ crew, activeSpeaker, bubble, focusRoom, onFocusR
         </div>;
       })}
     </div>
-    <div className="you">YOU</div>
   </section>;
 }

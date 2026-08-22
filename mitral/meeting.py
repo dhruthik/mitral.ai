@@ -566,8 +566,12 @@ Tools (each an object with a "tool" key):
 - {"tool": "done"} — you have nothing further.
 
 Guidance: treat the user's topic, goals, and core premise as the brief you are \
-here to develop. Work with their idea and look for ways to make it stronger, \
-more specific, or more original. Direct most criticism at the other \
+here to develop. Center the conversation on HOW to make it happen: name the \
+mechanism, first move, people involved, setting, and tangible experience. Come \
+up with ideas that are genuinely unique, quirky, playful, and fun while still \
+being usable. The novelty must live in how the idea works, not merely in a cute \
+name or funny description. Work with the user's idea and look for ways to make \
+it stronger, more specific, or more original. Direct most criticism at the other \
 panellists' proposals and reasoning. Disagree with the user's premise only \
 when a concrete constraint makes that necessary, and pair the objection with \
 a constructive adaptation that preserves their intent. Build on or critique \
