@@ -112,10 +112,12 @@ def meeting(body: MeetingRequest) -> dict[str, object]:
     """
     if body.mode not in MODES:
         raise HTTPException(status_code=422, detail=f"mode must be one of {sorted(MODES)}")
-    live = body.engine == "llm" or (
-        body.engine == "auto" and not DEV_MODE and bool(os.getenv("MISTRAL_API_KEY"))
+    # DEV_MODE outranks the engine flag: the whole point is not to spend a minute
+    # of sequential Mistral calls (or any credits) every time you reload the UI.
+    live = not DEV_MODE and (
+        body.engine == "llm" or (body.engine == "auto" and bool(os.getenv("MISTRAL_API_KEY")))
     )
-    if body.engine == "llm":
+    if body.engine == "llm" and not DEV_MODE:
         _require_key()
     seed = body.seed if body.seed is not None else random.randrange(1 << 30)
     try:
