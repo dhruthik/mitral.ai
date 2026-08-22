@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Setup from './components/Setup';
 import Stage from './components/Stage';
 import { IdeaBoard, Transcript } from './components/Panels';
@@ -17,6 +17,28 @@ const DELAYS = {
 };
 
 const roomLabel = room => room === 'plenary' ? 'PLENARY' : room.replace('room-', 'ROOM ').toUpperCase();
+
+// The casting call is a full minute of sequential Mistral calls, so the screen
+// rotates through these rather than staring at one line the whole time.
+const CASTING_LINES = [
+  'Rounding up strangers with opinions…',
+  'Handing out contradictory worldviews…',
+  'Teaching someone to disagree politely…',
+  'Assigning one person far too much confidence…',
+  'Checking nobody brought the same idea twice…',
+  'Pouring the coffee, dimming the lights…',
+  'Writing bios nobody will fact-check…',
+  'Seating the quiet one next to the loud one…',
+];
+
+function CastingHeadline() {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setIndex(current => (current + 1) % CASTING_LINES.length), 3200);
+    return () => clearInterval(timer);
+  }, []);
+  return <h1 key={index} className="casting-line">{CASTING_LINES[index]}</h1>;
+}
 
 export default function App() {
   const [topic, setTopic] = useState("a coffee shop that's only open at night");
@@ -162,7 +184,7 @@ export default function App() {
       {phase === 'setup' && <Setup {...{ topic, setTopic, panellists, setPanellists, mode, setMode, start, error }} />}
       {phase === 'casting' && <main className="setup card">
         <p className="eyebrow">Casting the panel</p>
-        <h1>Convening your panellists…</h1>
+        <CastingHeadline />
         <p className="intro">The panel, its proposals, and every vote are decided before the curtain rises — then played back live on the stage.</p>
         <button className="button secondary" onClick={leave}>Cancel</button>
       </main>}
