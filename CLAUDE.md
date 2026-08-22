@@ -96,6 +96,14 @@ voice mid-session, sending the existing cast so the newcomer stays orthogonal) a
 keeps the authoritative session in a `useRef` and mutates it when a panellist is added
 so quorum and @mentions stay in step.
 
+Pause only freezes playback; the panel keeps talking to Mistral server-side. **Stop**
+is the real halt: `/api/meeting/stop` sets the `threading.Event` registered for that
+stream id (handed to the client in the `meta` frame), which `Meeting.run` polls
+between turns via `should_stop` and the casting loop checks per persona. The stream
+generator's `finally` sets the same flag, so a client that merely hangs up also stops
+the spend. Stopping leaves the transcript on screen but hides Pause, Skip, and the
+interjection box — every one of those can start another model call.
+
 The model returns speaker *names*, not ids; `_match()` in `main.py` maps them back and
 falls back to the first agent rather than 500ing.
 

@@ -120,6 +120,7 @@ class Meeting:
         room_turn_cap: int = 18,
         total_turn_cap: int = 80,
         on_event: Callable[[Event], None] | None = None,
+        should_stop: Callable[[], bool] | None = None,
     ):
         if len(cast) < 2:
             raise ValueError("a meeting needs at least two panellists")
@@ -131,6 +132,9 @@ class Meeting:
         self.room_turn_cap = room_turn_cap
         self.total_turn_cap = total_turn_cap
         self.on_event = on_event
+        # Polled between turns so a hung-up client stops the spend: every turn is
+        # a model call, and the loop would otherwise run to its cap regardless.
+        self.should_stop = should_stop
 
         self.agents = {p.name: AgentState(persona=p) for p in cast}
         self.log: list[Event] = []
@@ -147,11 +151,15 @@ class Meeting:
 
     def run(self) -> MeetingResult:
         while self.result is None:
+            if self._stopped():
+                return self._halt()
             self.round += 1
             for room in ROOMS:
                 occupants = self.occupants(room)
                 if len(occupants) < 2:
                     continue  # invariant 2: no monologues
+                if self._stopped():
+                    return self._halt()
                 self._take_turn(self._pick_speaker(occupants))
                 if self.result:
                     break
@@ -162,6 +170,21 @@ class Meeting:
                 break
             self._resolve_movement()
             self._check_termination()
+        return self.result
+
+    def _stopped(self) -> bool:
+        return bool(self.should_stop and self.should_stop())
+
+    def _halt(self) -> MeetingResult:
+        """Abandon the meeting mid-flight. No session_closed is emitted: nothing
+        was decided, and whoever asked us to stop has stopped listening anyway."""
+        self.result = MeetingResult(
+            answer=None,
+            proposals=list(self.proposals.values()),
+            events=self.log,
+            rounds=self.round,
+            turns=self.turns,
+        )
         return self.result
 
     def occupants(self, room: str) -> list[AgentState]:

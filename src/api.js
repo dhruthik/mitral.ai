@@ -71,6 +71,12 @@ export async function streamMeeting(topic, { panellists, mode }, handlers = {}, 
   return result;
 }
 
+// Tells the backend to abandon a running meeting. Aborting the fetch only stops
+// the playback — the panel keeps calling Mistral server-side until this lands.
+export function stopMeeting(id) {
+  return post('/api/meeting/stop', { id });
+}
+
 // Casts the panel, gets everyone's opening pitch, and runs the deliberation.
 // That's a dozen sequential Mistral calls, so expect this to take a while.
 export function startSession(topic, { panellists, mode }, signal) {

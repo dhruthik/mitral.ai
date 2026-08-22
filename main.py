@@ -11,6 +11,7 @@ import os
 import queue
 import random
 import threading
+import uuid
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
@@ -61,6 +62,10 @@ class ReplyRequest(BaseModel):
     persona: dict
 
 
+class StopRequest(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+
+
 class MeetingRequest(BaseModel):
     topic: str = Field(min_length=1, max_length=500)
     panellists: int = Field(default=4, ge=2, le=8)
@@ -87,6 +92,12 @@ DEFAULT_ORIGINS = [
 # Mistral: instant, free, and the same response shape. Off by default — set
 # DEV_MODE=1 to work on the UI without spending a minute (and money) per run.
 DEV_MODE = os.getenv("DEV_MODE", "0").lower() not in ("0", "false", "no", "")
+
+# Live streams, so the browser can actually call a halt: stream id -> flag that
+# the casting loop and the meeting thread both poll. Without it, hanging up only
+# stops the *playback* — the panel keeps talking to Mistral on our bill until it
+# hits its turn cap.
+_stops: dict[str, threading.Event] = {}
 
 app = FastAPI(title="Brainstorm Stage API", version="2.0.0")
 app.add_middleware(
@@ -171,6 +182,9 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
     if body.engine == "llm" and not DEV_MODE:
         _require_key()
     seed = body.seed if body.seed is not None else random.randrange(1 << 30)
+    stream_id = uuid.uuid4().hex
+    stop = threading.Event()
+    _stops[stream_id] = stop
 
     def encode(kind: str, **data) -> str:
         return json.dumps({"type": kind, **data}) + "\n"
@@ -178,14 +192,18 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
     def stream():
         cast: list[Persona] = []
         try:
-            yield encode("meta", topic=body.topic, engine="llm" if live else "mock",
+            yield encode("meta", id=stream_id, topic=body.topic, engine="llm" if live else "mock",
                          model=MODEL if live else "mock", seed=seed)
             source = generate_cast_iter(body.topic, body.panellists, seed, body.mode) if live else iter(
                 mock_cast(body.topic, body.panellists, seed, body.mode)
             )
             for person in source:
+                if stop.is_set():
+                    return  # stopped mid-casting; each persona is its own model call
                 cast.append(person)
                 yield encode("agent", agent=_agent(person, len(cast) - 1))
+            if stop.is_set():
+                return
 
             if live:
                 turn_fn, vote_fn = llm_turn, llm_vote
@@ -206,6 +224,7 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
                         working_rooms=not body.plenary_only,
                         total_turn_cap=60 if live else 40,
                         on_event=lambda event: updates.put(("event", event.model_dump())),
+                        should_stop=stop.is_set,
                     ).run()
                     updates.put(("result", result))
                 except Exception as exc:
@@ -230,12 +249,27 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
                     raise value
         except Exception as exc:
             yield encode("error", message=_upstream(exc).detail)
+        finally:
+            # Covers the client simply hanging up as well as the explicit button:
+            # closing the generator lands here and the meeting thread sees the flag.
+            stop.set()
+            _stops.pop(stream_id, None)
 
     return StreamingResponse(
         stream(),
         media_type="application/x-ndjson",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.post("/api/meeting/stop")
+def meeting_stop(body: StopRequest) -> dict[str, bool]:
+    """Halt a running meeting so it stops spending. Idempotent, and unknown ids
+    are fine — the run may have finished on its own a moment earlier."""
+    stop = _stops.get(body.id)
+    if stop:
+        stop.set()
+    return {"stopped": stop is not None}
 
 
 @app.post("/api/session")

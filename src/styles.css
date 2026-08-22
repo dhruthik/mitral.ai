@@ -23,6 +23,8 @@ input:focus { border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft);
 .button { border:0; border-radius:100px; padding:13px 23px; background:var(--brand); color:white; font-family:Fredoka; font-weight:600; transition:.18s ease; }
 .button:hover { transform:translateY(-2px); box-shadow:0 7px 18px #6c4ce04a; }
 .button.secondary { color:var(--ink); background:var(--surface-2); }
+.button.danger { background:#d94a4a; }
+.button.danger:hover { box-shadow:0 7px 18px #d94a4a4a; }
 .setup-options { display:flex; justify-content:center; gap:22px; flex-wrap:wrap; margin:26px 0 6px; }
 .setup-options label { display:flex; align-items:center; gap:9px; color:var(--soft); font-size:.82rem; }
 .setup-options select { padding:9px 14px; border:2px solid var(--line); border-radius:100px; background:var(--paper); color:var(--ink); font:inherit; font-size:.85rem; }
