@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import Setup from './components/Setup';
 import Stage from './components/Stage';
 import { IdeaBoard, Transcript } from './components/Panels';
+import Verdict from './components/Verdict';
 import { streamMeeting, replyAs } from './api';
 import { decorateAgents } from './data';
 
@@ -30,6 +31,11 @@ export default function App() {
   const [speaker, setSpeaker] = useState(null);
   const [bubble, setBubble] = useState(null);
   const [winner, setWinner] = useState(null);
+  // The decision trail: the handful of events that actually moved the outcome,
+  // kept apart from the chat log so the verdict modal reads as a summary.
+  const [milestones, setMilestones] = useState([]);
+  const [verdictOpen, setVerdictOpen] = useState(false);
+  const [closed, setClosed] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [model, setModel] = useState('');
@@ -38,14 +44,21 @@ export default function App() {
   const pausedRef = useRef(false);
   const skipping = useRef(false);
   const request = useRef(null);
+  // pid → title, so the decision trail can name proposals the way people do
+  // rather than echoing "p3" at the reader.
+  const titles = useRef({});
+  const titleOf = pid => titles.current[pid] ? `“${titles.current[pid]}”` : pid;
   const addEntry = entry => setEntries(current => [...current, { id: id(), ...entry }]);
+  const addStep = step => setMilestones(current => [...current, { id: id(), ...step }]);
 
   async function start() {
     const cleanTopic = topic.trim() || 'a delightful new community space';
     setTopic(cleanTopic); setPhase('running'); setError('');
     setPaused(false); pausedRef.current = false; skipping.current = false;
     setWinner(null); setIdeas([]); setEntries([]); setCrew([]); setSpeaker(null); setBubble(null);
+    setMilestones([]); setVerdictOpen(false); setClosed(false);
     cancelled.current = false;
+    titles.current = {};
     request.current?.abort();
     request.current = new AbortController();
     const byName = {};
@@ -93,17 +106,22 @@ export default function App() {
         addEntry({ who: event.agent, text: data.text, room, color: agent?.color });
         break;
       case 'proposed':
+        titles.current[data.proposal_id] = data.title;
         if (data.carried_from) {
           setIdeas(current => current.map(idea => idea.pid === data.proposal_id ? { ...idea, room, carried: true } : idea));
           addEntry({ type: 'system', text: `📌 ${event.agent} carries “${data.title}” back to the plenary.` });
+          addStep({ kind: 'carried', mark: '📌', text: `${event.agent} carries “${data.title}” back to the plenary.` });
         } else {
-          setIdeas(current => [...current, { id: id(), pid: data.proposal_id, title: data.title, text: data.body, author: event.agent, room, votes: 0, color: agent?.color }]);
+          setIdeas(current => [...current, { id: id(), pid: data.proposal_id, title: data.title, text: data.body, author: event.agent, room, votes: 0, voters: [], color: agent?.color }]);
           addEntry({ type: 'action', text: `📝 ${event.agent} pins ${data.proposal_id}: “${data.title}”`, room });
+          addStep({ kind: 'proposal', mark: '📝', text: `${event.agent} proposes “${data.title}”.`, room });
         }
         break;
       case 'upvoted':
         setBubble(agent ? { agent: agent.id, text: `▲ ${data.proposal_id}`, type: 'vote' } : null);
-        setIdeas(current => current.map(idea => idea.pid === data.proposal_id ? { ...idea, votes: idea.votes + 1 } : idea));
+        setIdeas(current => current.map(idea => idea.pid === data.proposal_id
+          ? { ...idea, votes: idea.votes + 1, voters: [...(idea.voters || []), event.agent] }
+          : idea));
         addEntry({ type: 'action', text: `▲ ${event.agent} upvotes ${data.proposal_id}`, room });
         break;
       case 'joined':
@@ -113,24 +131,36 @@ export default function App() {
           setCrew(current => current.map(a => movers.has(a.name) ? { ...a, room: event.room } : a));
         }
         addEntry({ type: 'action', text: `🚪 ${event.agent} ${event.kind === 'joined' ? 'heads to' : 'returns to'} ${room}`, room });
+        if (event.kind === 'joined' && event.room !== 'plenary') {
+          const group = data.group || [event.agent];
+          // Every mover in a batch gets its own event carrying the same group;
+          // only the first one should write a step.
+          if (group[0] === event.agent) {
+            addStep({ kind: 'split', mark: '🚪', text: `${group.join(' and ')} break away to ${room}.` });
+          }
+        }
         break;
       case 'invited':
         addEntry({ type: 'action', text: `✉️ ${event.agent} slips an invitation to ${data.target} — “meet me in ${roomLabel(data.room)}”`, room });
         break;
       case 'vote_called':
         addEntry({ type: 'system', text: `🗳 ${event.agent} calls a vote on ${data.proposal_id} in ${room}.` });
+        addStep({ kind: 'vote', mark: '🗳', text: `${event.agent} calls a vote on ${titleOf(data.proposal_id)}.`, room });
         break;
       case 'vote_passed':
         addEntry({ type: 'system', text: `✅ Vote passes ${data.yes}/${data.of} in ${room}.` });
+        addStep({ kind: 'passed', mark: '✅', text: `Carried ${data.yes}–${data.of - data.yes}: ${titleOf(data.proposal_id)}.`, room });
         break;
       case 'vote_failed':
         addEntry({ type: 'system', text: `❌ Vote fails ${data.yes}/${data.of} in ${room}.` });
+        addStep({ kind: 'failed', mark: '❌', text: `Falls ${data.yes}–${data.of - data.yes}: ${titleOf(data.proposal_id)}.`, room });
         break;
       case 'done':
         addEntry({ type: 'action', text: `🤐 ${event.agent} has nothing further`, room });
         break;
       case 'kicked':
         addEntry({ type: 'system', text: `💥 ${event.agent} is voted out of ${room}.` });
+        addStep({ kind: 'kicked', mark: '💥', text: `${event.agent} is voted out of ${room}.` });
         break;
       case 'room_closed':
         addEntry({ type: 'system', text: `🔒 ${room} wraps up.` });
@@ -138,8 +168,11 @@ export default function App() {
       case 'session_closed':
         if (data.answer) setWinner(data.answer);
         addEntry({ type: 'system', text: data.answer ? `🏛 The session closes — ${data.answer} is the panel's answer.` : '🏛 The session closes without an agreed answer.' });
+        addStep({ kind: 'closed', mark: '🏛', text: data.answer ? 'The plenary closes and the answer stands.' : 'The plenary closes with nothing carried.' });
         setSpeaker(null);
         setBubble(null);
+        setClosed(true);
+        setVerdictOpen(true);
         break;
       default:
         break;
@@ -182,10 +215,19 @@ export default function App() {
         <IdeaBoard ideas={ideas} winner={winner} />
       </main>}
     </div>
+    {verdictOpen && <Verdict
+      winner={ideas.find(idea => idea.pid === winner) || null}
+      milestones={milestones}
+      ideas={ideas}
+      topic={topic}
+      onClose={() => setVerdictOpen(false)}
+    />}
     {phase === 'running' && <footer className="dock"><div className="dock-inner">
       <div className="controls">
         <button className="button secondary" onClick={() => setPaused(value => { pausedRef.current = !value; return !value; })}>{paused ? '▶ Resume' : '⏸ Pause'}</button>
-        <button className="button secondary" onClick={() => { skipping.current = true; pausedRef.current = false; setPaused(false); }}>⏭ Skip to verdict</button>
+        {closed
+          ? <button className="button" onClick={() => setVerdictOpen(true)}>🏛 The verdict</button>
+          : <button className="button secondary" onClick={() => { skipping.current = true; pausedRef.current = false; setPaused(false); }}>⏭ Skip to verdict</button>}
         <button className="button secondary" onClick={leave}>✕ New session</button>
       </div>
       <form onSubmit={interject}><input value={message} onChange={event => setMessage(event.target.value)} placeholder="Jump in… @mention any agent" aria-label="Message the group" /><button className="button">Say it</button></form>
