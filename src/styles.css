@@ -73,6 +73,17 @@ input:focus { border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft);
 .entry.user { background:var(--brand-soft); border-color:var(--brand); }
 .entry.action { color:var(--soft); font-size:.85rem; background:transparent; border-left-style:dashed; padding-block:5px; }
 .room-tag { color:var(--soft); font:9px Silkscreen; margin-right:6px; }
+/* Markdown inside chat entries, notes and bubbles — model output is written in it. */
+.entry p,.speech-bubble p { margin:0; }
+.entry p+p,.entry ul,.entry ol,.entry pre,.entry blockquote,.speech-bubble p+p { margin:6px 0 0; }
+.entry ul,.entry ol,.speech-bubble ul,.speech-bubble ol,.note-body ul,.note-body ol { padding-left:19px; }
+.entry li,.speech-bubble li,.note-body li { margin:2px 0; }
+.entry code,.note-body code,.speech-bubble code { padding:1px 4px; background:#2b244014; border-radius:4px; font-size:.86em; }
+.entry pre,.note-body pre { overflow:auto; margin:6px 0 0; padding:8px 10px; background:#2b244014; border-radius:6px; }
+.entry pre code { padding:0; background:none; }
+.entry blockquote,.note-body blockquote { margin:6px 0 0; padding-left:9px; border-left:2px solid var(--line); color:var(--soft); }
+.entry h3,.entry h4,.entry h5,.entry h6 { margin:6px 0 0; font-size:.95rem; }
+.entry a,.note-body a,.speech-bubble a { color:var(--brand); }
 .board { margin-top:16px; padding:20px; min-height:190px; }
 .idea-shelf { display:flex; gap:17px; flex-wrap:wrap; }
 .empty { color:var(--soft); margin:auto; padding:38px; }
@@ -80,7 +91,8 @@ input:focus { border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft);
 .note:nth-child(even) { transform:rotate(1deg); }
 .note strong { font-family:Fredoka; }
 .note strong span { opacity:.6; font-size:.8rem; }
-.note p { margin:7px 0 0; }
+.note p,.note-body { margin:7px 0 0; }
+.note-body p+p,.note-body ul,.note-body ol { margin-top:7px; }
 .note footer { display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:.75rem; opacity:.75; }
 .note-votes { font-family:Fredoka; font-weight:600; color:#8a6a10; }
 .note.winner { outline:4px solid #e0b93d; transform:rotate(0) scale(1.03); }
