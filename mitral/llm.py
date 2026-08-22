@@ -55,9 +55,22 @@ def complete_json(
                 temperature=temperature,
                 random_seed=seed,
             )
-            return json.loads(resp.choices[0].message.content)
+            return _as_object(json.loads(resp.choices[0].message.content))
         except SDKError as e:
             if e.status_code != 429 or attempt == retries - 1:
                 raise
             time.sleep(2**attempt)
     raise AssertionError("unreachable")
+
+
+def _as_object(data: object) -> dict:
+    """JSON mode guarantees valid JSON, not a top-level object.
+
+    The model occasionally wraps a single result in an array, so unwrap that
+    case rather than letting callers trip over it.
+    """
+    if isinstance(data, list) and len(data) == 1 and isinstance(data[0], dict):
+        return data[0]
+    if not isinstance(data, dict):
+        raise ValueError(f"expected a JSON object, got {type(data).__name__}: {data!r:.200}")
+    return data
