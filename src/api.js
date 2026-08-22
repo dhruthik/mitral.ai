@@ -31,6 +31,46 @@ export function runMeeting(topic, { panellists, mode }, signal) {
   return post('/api/meeting', { topic, panellists, mode }, signal);
 }
 
+export async function streamMeeting(topic, { panellists, mode }, handlers = {}, signal) {
+  let response;
+  try {
+    response = await fetch(`${API_URL}/api/meeting/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic, panellists, mode }),
+      signal,
+    });
+  } catch (exception) {
+    if (exception.name === 'AbortError') throw exception;
+    throw new Error(`Can't reach the API at ${API_URL}. Start it with: uvicorn main:app --reload --port 8000`);
+  }
+  if (!response.ok) {
+    const detail = await response.json().then(body => body.detail).catch(() => null);
+    throw new Error(detail || `Request failed (${response.status})`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let result;
+  while (true) {
+    const { value, done } = await reader.read();
+    buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const update = JSON.parse(line);
+      if (update.type === 'error') throw new Error(update.message);
+      if (update.type === 'result') result = update;
+      const handler = handlers[update.type];
+      if (handler) await handler(update);
+    }
+    if (done) break;
+  }
+  return result;
+}
+
 // Casts the panel, gets everyone's opening pitch, and runs the deliberation.
 // That's a dozen sequential Mistral calls, so expect this to take a while.
 export function startSession(topic, { panellists, mode }, signal) {

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { drawSprite } from '../sprites';
 
-export default function Avatar({ agent, compact = false, speaking = false }) {
+export default function Avatar({ agent, compact = false, speaking = false, bubble = null }) {
   const canvas = useRef(null);
 
   useEffect(() => {
@@ -25,6 +25,7 @@ export default function Avatar({ agent, compact = false, speaking = false }) {
 
   return (
     <div className={`avatar ${compact ? 'compact' : ''} ${speaking ? 'speaking' : ''}`} style={{ '--agent': agent.color }}>
+      {bubble && <div className={`speech-bubble ${bubble.type}`} role="status">{bubble.text}</div>}
       <div className="sprite-wrap"><canvas ref={canvas} className="pixel-person" width="12" height="16" aria-hidden="true" /></div>
       <strong>{agent.name}</strong>
       <small>{agent.role}</small>

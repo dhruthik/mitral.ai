@@ -6,12 +6,16 @@ session endpoint is slow by design — the UI shows a loading state rather than
 pretending with canned dialogue. The exception is DEV_MODE (on by default), which
 serves the prewritten panel in `mitral.fixture` so the UI can be built instantly.
 """
+import json
 import os
+import queue
 import random
+import threading
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from mitral.fixture import canned_deliberation, canned_extra, canned_reply, canned_session
@@ -26,6 +30,7 @@ from mitral.personality import (
     deliberate,
     first_takes,
     generate_cast,
+    generate_cast_iter,
     one_take,
     reply,
 )
@@ -153,6 +158,84 @@ def meeting(body: MeetingRequest) -> dict[str, object]:
         "rounds": result.rounds,
         "turns": result.turns,
     }
+
+
+@app.post("/api/meeting/stream")
+def meeting_stream(body: MeetingRequest) -> StreamingResponse:
+    """Stream casting and meeting events as newline-delimited JSON."""
+    if body.mode not in MODES:
+        raise HTTPException(status_code=422, detail=f"mode must be one of {sorted(MODES)}")
+    live = not DEV_MODE and (
+        body.engine == "llm" or (body.engine == "auto" and bool(os.getenv("MISTRAL_API_KEY")))
+    )
+    if body.engine == "llm" and not DEV_MODE:
+        _require_key()
+    seed = body.seed if body.seed is not None else random.randrange(1 << 30)
+
+    def encode(kind: str, **data) -> str:
+        return json.dumps({"type": kind, **data}) + "\n"
+
+    def stream():
+        cast: list[Persona] = []
+        try:
+            yield encode("meta", topic=body.topic, engine="llm" if live else "mock",
+                         model=MODEL if live else "mock", seed=seed)
+            source = generate_cast_iter(body.topic, body.panellists, seed, body.mode) if live else iter(
+                mock_cast(body.topic, body.panellists, seed, body.mode)
+            )
+            for person in source:
+                cast.append(person)
+                yield encode("agent", agent=_agent(person, len(cast) - 1))
+
+            if live:
+                turn_fn, vote_fn = llm_turn, llm_vote
+            else:
+                driver = MockDriver(body.topic, cast, seed)
+                turn_fn, vote_fn = driver.turn, driver.vote
+
+            updates: queue.Queue = queue.Queue()
+
+            def run_meeting() -> None:
+                try:
+                    result = Meeting(
+                        body.topic,
+                        cast,
+                        turn_fn=turn_fn,
+                        vote_fn=vote_fn,
+                        seed=seed,
+                        working_rooms=not body.plenary_only,
+                        total_turn_cap=60 if live else 40,
+                        on_event=lambda event: updates.put(("event", event.model_dump())),
+                    ).run()
+                    updates.put(("result", result))
+                except Exception as exc:
+                    updates.put(("error", exc))
+
+            threading.Thread(target=run_meeting, daemon=True).start()
+            while True:
+                kind, value = updates.get()
+                if kind == "event":
+                    yield encode("event", event=value)
+                elif kind == "result":
+                    yield encode(
+                        "result",
+                        agents=_agents(cast),
+                        proposals=[p.model_dump() for p in value.proposals],
+                        answer=value.answer.model_dump() if value.answer else None,
+                        rounds=value.rounds,
+                        turns=value.turns,
+                    )
+                    break
+                else:
+                    raise value
+        except Exception as exc:
+            yield encode("error", message=_upstream(exc).detail)
+
+    return StreamingResponse(
+        stream(),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/api/session")
