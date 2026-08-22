@@ -286,6 +286,8 @@ class Meeting:
             p = self.proposals.get(pid)
             if p is None or p.room != room:
                 agent.receipts.append(f"vote ignored: no proposal {pid} in this room")
+            elif not any(voter != p.author for voter in p.votes):
+                agent.receipts.append(f"vote ignored: {pid} needs another panellist's upvote first")
             else:
                 self.pending_votes[room] = {"proposal_id": pid, "caller": agent.name}
                 self._emit(room, "vote_called", agent.name, {"proposal_id": pid})
@@ -337,8 +339,18 @@ class Meeting:
                 continue
             occupants = self.occupants(room)
             voters = [a for a in occupants if a.name != motion["caller"]]
+            alternatives = [
+                other for other in self.proposals.values()
+                if other.room == room and other.id != p.id
+            ]
+            comparison = "\n".join(
+                f'- {other.id} "{other.title}" ({len(other.votes)} upvotes): {other.body}'
+                for other in alternatives
+            ) or "- none"
             question = (
-                f'Vote to adopt proposal {p.id} "{p.title}" and close {room}: {p.body}'
+                f'Vote to adopt proposal {p.id} "{p.title}" and close {room}.\n'
+                f'Candidate ({len(p.votes)} upvotes): {p.body}\n'
+                f'Alternatives still on the table:\n{comparison}'
             )
             yes = 1 + sum(1 for v in voters if self._safe_vote(v, question))
             if yes > len(occupants) / 2:
@@ -554,9 +566,11 @@ Tools (each an object with a "tool" key):
 - {"tool": "done"} — you have nothing further.
 
 Guidance: build on or attack what was actually said. Propose when you have \
-something concrete; upvote what deserves it; call a vote when a proposal has \
-clearly won the room; say done when you are repeating yourself. Do not \
-narrate tool use in your speech."""
+something concrete and materially different from what is already on the table. \
+Every turn must add a specific critique, tradeoff, test, or improvement rather \
+than paraphrasing or merely agreeing. Upvote what deserves it; call a vote when \
+a proposal has clearly won the room; say done when you are repeating yourself. \
+Do not narrate tool use in your speech."""
 
 VOTE_SYSTEM = """You are a panellist deciding a yes/no vote. Weigh it in \
 character and reply with JSON: {"vote": "yes"} or {"vote": "no"}."""
