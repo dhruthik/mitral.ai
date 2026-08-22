@@ -21,10 +21,27 @@ git clone https://github.com/dhruthik/mitral.ai.git
 cd mitral.ai
 ```
 
-### Get a Mistral API key
+### Choose an AI provider
 
-Everything the panel says comes from Mistral, so you need a key before anything
-runs.
+The panel can run on Mistral or Claude. Set the provider and matching key in
+`.env`:
+
+```env
+LLM_PROVIDER=mistral
+MISTRAL_API_KEY=your-key
+```
+
+or:
+
+```env
+LLM_PROVIDER=claude
+ANTHROPIC_API_KEY=your-key
+```
+
+The default models can be overridden with `MISTRAL_MODEL`,
+`MISTRAL_FAST_MODEL`, `CLAUDE_MODEL`, and `CLAUDE_FAST_MODEL`.
+
+### Get a Mistral API key
 
 1. Sign up at **[console.mistral.ai](https://console.mistral.ai)**.
 2. Go to **API Keys** → **Create new key**, and copy it. You only get to see it
@@ -73,13 +90,13 @@ curl http://localhost:8000/api/health
 
 ### Dev mode
 
-`DEV_MODE=1` is the default, and it means nothing calls Mistral: every endpoint
-serves the prewritten panel in `mitral/fixture.py`. Sessions are instant and
-free, which is what you want while working on the UI — but it is always the same
-eight panellists, always talking about a night cafe, whatever topic you type. The
-topic chip reads `dev fixture · no API calls` when it's on.
+`DEV_MODE=1` means nothing calls Mistral: every endpoint serves the prewritten
+panel in `mitral/fixture.py`. Sessions are instant and free, which is what you
+want while working on the UI — but it is always the same eight panellists, always
+talking about a night cafe, whatever topic you type. The topic chip reads
+`dev fixture · no API calls` when it's on.
 
-Set `DEV_MODE=0` in `.env` and restart uvicorn for real generation.
+It is off by default: set `DEV_MODE=1` in `.env` and restart uvicorn to use it.
 
 ### What actually runs
 
