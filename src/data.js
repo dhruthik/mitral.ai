@@ -15,6 +15,28 @@ export function makeCrew() {
     .map(([name, stance, color], index) => ({ id: name.toLowerCase(), name, stance, role: `the ${stance}`, color, sprite: makeSprite(stance), room: 'dream', index }));
 }
 
+// Map the backend's cognition trait onto one of the five sprite bodies.
+const COGNITION_STANCE = {
+  contrarian: 'skeptic', adversarial: 'skeptic', inversion: 'skeptic', historical: 'skeptic', subtractive: 'skeptic',
+  analogical: 'dreamer', extrapolative: 'dreamer', 'resource-swap': 'dreamer',
+  combinatorial: 'wildcard', simulation: 'wildcard', taxonomic: 'wildcard',
+  narrative: 'advocate', ethnographic: 'advocate',
+};
+const CAST_COLORS = ['#7c5ce8', '#e09a2f', '#4c9be0', '#e86a8a', '#2fb8a6', '#c05ce8', '#64748b', '#5cb85c'];
+
+export function crewFromCast(cast) {
+  return cast.map((person, index) => ({
+    id: person.name.toLowerCase(),
+    name: person.name,
+    role: person.cognition,
+    tagline: person.tagline,
+    color: CAST_COLORS[index % CAST_COLORS.length],
+    sprite: makeSprite(COGNITION_STANCE[person.cognition] || 'pragmatist'),
+    room: 'plenary',
+    index,
+  }));
+}
+
 const angles = ['tiny', 'members-only', 'after-hours', 'pay-what-you-want', 'neighborhood', 'secret'];
 const formats = ['club', 'ritual', 'passport', 'wall of notes', 'pop-up', 'swap meet'];
 

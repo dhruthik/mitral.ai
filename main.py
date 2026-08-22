@@ -25,6 +25,25 @@ class BrainstormResponse(BaseModel):
     model: str
 
 
+class MeetingRequest(BaseModel):
+    topic: str = Field(min_length=1, max_length=500)
+    n: int = Field(default=4, ge=2, le=8)
+    seed: int | None = None
+    # auto = real LLM when MISTRAL_API_KEY is set, offline mock otherwise
+    mode: Literal["auto", "mock", "llm"] = "auto"
+    plenary_only: bool = False
+
+
+class MeetingResponse(BaseModel):
+    mode: Literal["mock", "llm"]
+    cast: list[dict]
+    events: list[dict]
+    proposals: list[dict]
+    answer: dict | None
+    rounds: int
+    turns: int
+
+
 app = FastAPI(title="Brainstorm Stage API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
@@ -37,6 +56,59 @@ app.add_middleware(
 @app.get("/api/health")
 def health() -> dict[str, str | bool]:
     return {"status": "ok", "llm_configured": bool(os.getenv("LLM_API_KEY"))}
+
+
+@app.post("/api/meeting", response_model=MeetingResponse)
+def meeting(body: MeetingRequest) -> MeetingResponse:
+    """Run one orchestrated meeting to completion and return its event log.
+
+    The frontend plays the log back at its own pace, so this stays a plain
+    request/response — no streaming needed until turns get LLM-slow.
+    """
+    from mitral.meeting import Meeting, llm_turn, llm_vote
+    from mitral.mock import MockDriver, mock_cast
+
+    live = body.mode == "llm" or (body.mode == "auto" and bool(os.getenv("MISTRAL_API_KEY")))
+    try:
+        if live:
+            from mitral.personality import generate_cast
+
+            cast = generate_cast(body.topic, body.n, body.seed)
+            turn_fn, vote_fn = llm_turn, llm_vote
+        else:
+            cast = mock_cast(body.topic, body.n, body.seed)
+            driver = MockDriver(body.topic, cast, body.seed)
+            turn_fn, vote_fn = driver.turn, driver.vote
+        result = Meeting(
+            body.topic,
+            cast,
+            turn_fn=turn_fn,
+            vote_fn=vote_fn,
+            seed=body.seed,
+            working_rooms=not body.plenary_only,
+            total_turn_cap=60 if live else 40,
+        ).run()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"meeting failed: {exc}") from exc
+    return MeetingResponse(
+        mode="llm" if live else "mock",
+        cast=[
+            {
+                "name": p.name,
+                "tagline": p.tagline,
+                "cognition": p.traits.cognition,
+                "lens": p.traits.lens,
+                "voice": p.traits.voice,
+                "dominance": p.traits.dominance,
+            }
+            for p in cast
+        ],
+        events=[e.model_dump() for e in result.events],
+        proposals=[p.model_dump() for p in result.proposals],
+        answer=result.answer.model_dump() if result.answer else None,
+        rounds=result.rounds,
+        turns=result.turns,
+    )
 
 
 @app.post("/api/brainstorm", response_model=BrainstormResponse)
