@@ -1,31 +1,47 @@
-"""Provider-agnostic LLM gateway for Brainstorm Stage."""
-import json
+"""HTTP gateway for Brainstorm Stage.
+
+The browser never sees the Mistral key: every call goes through here and out via
+`mitral.llm`. Generating a panel is a sequence of a dozen-odd model calls, so the
+session endpoint is slow by design — the UI shows a loading state rather than
+pretending with canned dialogue.
+"""
 import os
-from typing import Literal
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+import random
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from mitral.llm import MODEL
+from mitral.personality import (
+    MODES,
+    Persona,
+    deliberate,
+    first_takes,
+    generate_cast,
+    reply,
+)
 
-class Message(BaseModel):
-    role: Literal["user", "assistant"]
-    content: str = Field(min_length=1, max_length=8_000)
+# Stage furniture. The model names the panellists; these just keep each one
+# visually distinct on the stage.
+GLYPHS = ["✦", "◆", "■", "♥", "※", "✺", "●", "▲"]
+COLORS = ["#7c5ce8", "#e09a2f", "#4c9be0", "#e86a8a", "#2fb8a6", "#c05ce8", "#64748b", "#d8632f"]
 
 
-class BrainstormRequest(BaseModel):
+class SessionRequest(BaseModel):
     topic: str = Field(min_length=1, max_length=500)
-    messages: list[Message] = Field(default_factory=list, max_length=30)
+    panellists: int = Field(default=5, ge=2, le=8)
+    mode: str = Field(default="grounded")
+    seed: int | None = None
 
 
-class BrainstormResponse(BaseModel):
-    ideas: list[str]
-    model: str
+class ReplyRequest(BaseModel):
+    topic: str = Field(min_length=1, max_length=500)
+    message: str = Field(min_length=1, max_length=2_000)
+    persona: dict
 
 
-app = FastAPI(title="Brainstorm Stage API", version="1.0.0")
+app = FastAPI(title="Brainstorm Stage API", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[os.getenv("FRONTEND_ORIGIN", "http://localhost:5173")],
@@ -35,38 +51,103 @@ app.add_middleware(
 
 
 @app.get("/api/health")
-def health() -> dict[str, str | bool]:
-    return {"status": "ok", "llm_configured": bool(os.getenv("LLM_API_KEY"))}
-
-
-@app.post("/api/brainstorm", response_model=BrainstormResponse)
-def brainstorm(body: BrainstormRequest) -> BrainstormResponse:
-    api_key = os.getenv("LLM_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=503, detail="LLM_API_KEY is not configured")
-    base_url = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-    model = os.getenv("LLM_MODEL", "gpt-4.1-mini")
-    payload = {
-        "model": model,
-        "temperature": 0.9,
-        "response_format": {"type": "json_object"},
-        "messages": [
-            {"role": "system", "content": "Produce exactly two vivid ideas. Return only valid JSON as {\"ideas\":[\"first\",\"second\"]}. Keep each under 240 characters."},
-            *[message.model_dump() for message in body.messages],
-            {"role": "user", "content": f"Disney Method brainstorm topic: {body.topic}"},
-        ],
+def health() -> dict[str, object]:
+    return {
+        "status": "ok",
+        "llm_configured": bool(os.getenv("MISTRAL_API_KEY")),
+        "model": MODEL,
     }
-    request = Request(f"{base_url}/chat/completions", data=json.dumps(payload).encode(), headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, method="POST")
+
+
+@app.post("/api/session")
+def session(body: SessionRequest) -> dict[str, object]:
+    """Generate a whole panel: who's in the room, what they pitch, what wins."""
+    _require_key()
+    if body.mode not in MODES:
+        raise HTTPException(status_code=422, detail=f"mode must be one of {sorted(MODES)}")
+    seed = body.seed if body.seed is not None else random.randrange(1 << 30)
     try:
-        with urlopen(request, timeout=45) as response:
-            result = json.load(response)
-        ideas = json.loads(result["choices"][0]["message"]["content"])["ideas"]
-        if not isinstance(ideas, list) or len(ideas) != 2 or not all(isinstance(x, str) and x.strip() for x in ideas):
-            raise ValueError("Invalid ideas")
-    except HTTPError as exc:
-        raise HTTPException(status_code=502, detail=f"LLM provider error: {exc.read().decode(errors='replace')[:500]}") from exc
-    except (URLError, TimeoutError) as exc:
-        raise HTTPException(status_code=504, detail="The LLM provider could not be reached") from exc
-    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        raise HTTPException(status_code=502, detail="The LLM provider returned an unexpected response") from exc
-    return BrainstormResponse(ideas=[idea.strip() for idea in ideas], model=model)
+        cast = generate_cast(body.topic, body.panellists, seed, body.mode)
+        pitches = first_takes(cast, body.topic, seed)
+        verdict = deliberate(cast, body.topic, pitches, seed)
+    except Exception as exc:
+        raise _upstream(exc) from exc
+
+    agents = [
+        {
+            "id": f"{_slug(p.name)}-{i}",
+            "name": p.name,
+            "role": p.tagline,
+            "bio": p.bio,
+            "glyph": GLYPHS[i % len(GLYPHS)],
+            "color": COLORS[i % len(COLORS)],
+            "index": i,
+            "persona": p.model_dump(),
+        }
+        for i, p in enumerate(cast)
+    ]
+    return {
+        "topic": body.topic,
+        "model": MODEL,
+        "seed": seed,
+        "agents": agents,
+        "pitches": [
+            {"agent": agents[i]["id"], **q.model_dump()} for i, q in enumerate(pitches)
+        ],
+        "deliberation": {
+            "plan": {"agent": _match(agents, verdict.plan_speaker), "text": verdict.plan_text},
+            "test": {"agent": _match(agents, verdict.test_speaker), "text": verdict.test_text},
+            "winner": {"agent": _match(agents, verdict.winner_speaker), "why": verdict.why},
+        },
+    }
+
+
+@app.post("/api/reply")
+def respond(body: ReplyRequest) -> dict[str, str]:
+    """One panellist's answer to something the human said in the room."""
+    _require_key()
+    try:
+        persona = Persona(**body.persona)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail="persona is not a valid panellist") from exc
+    try:
+        return {"text": reply(persona, body.topic, body.message)}
+    except Exception as exc:
+        raise _upstream(exc) from exc
+
+
+def _require_key() -> None:
+    if not os.getenv("MISTRAL_API_KEY"):
+        raise HTTPException(
+            status_code=503,
+            detail="MISTRAL_API_KEY is not set — get one at https://console.mistral.ai and put it in .env",
+        )
+
+
+def _upstream(exc: Exception) -> HTTPException:
+    status = getattr(exc, "status_code", None)
+    if status == 429:
+        return HTTPException(status_code=429, detail="Mistral rate limit hit — give it a moment and retry")
+    if status == 401:
+        return HTTPException(status_code=502, detail="Mistral rejected the API key")
+    return HTTPException(status_code=502, detail=f"Mistral call failed: {str(exc)[:300]}")
+
+
+def _slug(name: str) -> str:
+    return "".join(c if c.isalnum() else "-" for c in name.lower()).strip("-") or "agent"
+
+
+def _match(agents: list[dict], name: str) -> str:
+    """Map a name the model returned back onto an agent id.
+
+    The model is asked for a name off the panel list but occasionally returns it
+    with a title attached, or picks nobody at all. Fall back rather than 500.
+    """
+    wanted = name.strip().lower()
+    for agent in agents:
+        if agent["name"].lower() == wanted:
+            return agent["id"]
+    for agent in agents:
+        if agent["name"].lower() in wanted or wanted in agent["name"].lower():
+            return agent["id"]
+    return agents[0]["id"]
