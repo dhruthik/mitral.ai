@@ -41,6 +41,7 @@ export default function App() {
   const [stopped, setStopped] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
   const [model, setModel] = useState('');
   const session = useRef(null);
   const cancelled = useRef(false);
@@ -187,6 +188,53 @@ export default function App() {
     }
   }
 
+  // The whole run as plain text, for pasting into another model to judge the
+  // output. Entries are already in order, so this is just a re-render of them
+  // plus the context the transcript itself never spells out.
+  function transcriptText() {
+    const lines = [
+      `TOPIC: ${topic}`,
+      `MODE: ${mode} · ${crew.length} panellists · ${model}`,
+      '',
+      'PANEL',
+      ...(crew.length ? crew.map(agent => `- ${agent.name} — ${agent.role} [${agent.cognition}]`) : ['(none yet)']),
+      '',
+      'ACTIVITY',
+      ...entries.map(entry => {
+        const room = entry.room ? `[${entry.room}] ` : '';
+        return entry.who ? `${room}${entry.who}: ${entry.text}` : `${room}${entry.text}`;
+      }),
+    ];
+    if (ideas.length) {
+      lines.push('', 'PROPOSALS');
+      for (const idea of ideas) {
+        lines.push(`- ${idea.pid} “${idea.title}” — ${idea.author} · ▲${idea.votes}${winner === idea.pid ? ' · WINNER' : ''}`);
+        lines.push(`  ${idea.text}`);
+      }
+    }
+    return lines.join('\n');
+  }
+
+  async function copyTranscript() {
+    const text = transcriptText();
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Clipboard API is unavailable outside secure contexts; fall back to the
+      // old execCommand trick rather than silently doing nothing.
+      const field = document.createElement('textarea');
+      field.value = text;
+      field.style.position = 'fixed';
+      field.style.opacity = '0';
+      document.body.appendChild(field);
+      field.select();
+      document.execCommand('copy');
+      field.remove();
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  }
+
   async function interject(event) {
     event.preventDefault();
     const text = message.trim();
@@ -235,7 +283,7 @@ export default function App() {
       {phase === 'setup' && <Setup {...{ topic, setTopic, panellists, setPanellists, mode, setMode, start, error }} />}
       {phase === 'running' && <main className="session">
         <div className="topic-chip"><small>TOPIC</small>{topic}<span className={`api-state ${stopped ? '' : 'connected'}`}>{stopped ? 'stopped · no API calls' : model}</span></div>
-        <div className="workspace"><Stage crew={crew} activeSpeaker={speaker} bubble={bubble} /><Transcript entries={entries} /></div>
+        <div className="workspace"><Stage crew={crew} activeSpeaker={speaker} bubble={bubble} /><Transcript entries={entries} onCopy={copyTranscript} copied={copied} /></div>
         <IdeaBoard ideas={ideas} winner={winner} />
       </main>}
     </div>
