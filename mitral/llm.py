@@ -7,7 +7,10 @@ one-file change.
 import json
 import os
 
+from dotenv import load_dotenv
 from mistralai.client import Mistral  # note: mistralai>=2.9 moved this out of the root package
+
+load_dotenv()
 
 MODEL = "mistral-large-latest"
 
