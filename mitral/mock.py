@@ -43,6 +43,10 @@ def mock_cast(topic: str, n: int = 4, seed: int | None = None, mode: str = "wild
     names = rng.sample(NAMES, n)
     cast = []
     for name, t in zip(names, sample_traits(n, rng, mode)):
+        # Demo mode has no model to write the free-text field, so derive a
+        # topic-specific lens rather than restoring a hidden fixed lens list.
+        lens = f"what a {t.cognition} approach reveals about {topic}"
+        t = t.model_copy(update={"lens": lens})
         cast.append(Persona(
             name=name,
             tagline=f"{t.cognition} thinker, {t.voice}",

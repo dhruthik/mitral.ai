@@ -3,9 +3,8 @@
 The hard part is not writing personalities, it's writing personalities that
 don't collapse into the same three ideas. Two things make that work:
 
-1.  Traits are sampled on *orthogonal axes* and the discrete ones are dealt
-    without replacement, so no two agents can share a way of thinking or a
-    domain to think about it with.
+1.  Core traits are sampled on *orthogonal axes* and dealt without replacement,
+    while each agent writes its own topic-specific lens.
 2.  `voice` is deliberately independent of `cognition`. The funny one is funny
     in delivery while still reasoning rigorously — humour is a costume, not a
     brain. That's what stops the comic relief from being useless.
@@ -19,39 +18,33 @@ from pydantic import BaseModel, Field
 
 from .llm import FAST_MODEL, complete_json
 
-# How the agent actually generates ideas. Dealt without replacement.
+# How the agent actually generates ideas. Dealt without replacement. Keep the
+# pool evenly split between analytical and imaginative/intuitive approaches so
+# a panel does not default to five variations of critique and optimisation.
 COGNITION = [
+    # Analytical approaches (10)
     ("first-principles", "strips the problem to physics and money and rebuilds from there"),
     ("analogical", "solves it by finding a solved problem in a distant field"),
-    ("contrarian", "assumes the obvious answer is wrong and looks for why"),
-    ("combinatorial", "mashes unrelated existing things together and sees what survives"),
     ("empirical", "wants the cheapest experiment that would kill the idea today"),
     ("constraint-driven", "invents a brutal limitation and designs inside it"),
-    ("narrative", "imagines one specific user's day and works backwards"),
-    ("adversarial", "designs the thing by first designing how to break it"),
-    ("historical", "digs up what was already tried here and why it died"),
     ("systemic", "hunts the feedback loop that keeps regenerating the problem"),
-    ("extrapolative", "asks what this looks like at 100x and designs for that"),
     ("probabilistic", "thinks in odds and expected value, not in outcomes"),
-    ("subtractive", "improves it by deleting parts until something finally breaks"),
-    ("inversion", "states the goal backwards and asks how you'd guarantee failure"),
     ("economic", "follows the incentives and asks who profits from each version"),
     ("ethnographic", "watches what people actually do instead of what they say"),
-    ("taxonomic", "sorts the space into categories until the empty box is obvious"),
     ("temporal", "asks what changes if this happens in a week versus in a year"),
-    ("resource-swap", "asks what becomes possible if one scarce input became free"),
     ("simulation", "plays the idea forward three moves and reports the board"),
-]
 
-# The domain they drag every conversation back to. Dealt without replacement.
-LENS = [
-    "marine biology", "freight logistics", "tabletop game design",
-    "emergency medicine", "street food carts", "cathedral architecture",
-    "competitive speedrunning", "actuarial insurance", "beekeeping",
-    "air traffic control", "second-hand bookshops", "municipal plumbing",
-    "wildfire fighting", "orchestral conducting", "professional wrestling booking",
-    "antarctic research stations", "theme park queue design", "forensic accounting",
-    "stage magic", "field archaeology",
+    # Imaginative and intuitive approaches (10)
+    ("intuitive", "notices the idea with the strongest pull, then works backwards to explain why"),
+    ("visual-spatial", "turns the problem into shapes, spaces, paths, and arrangements people can feel"),
+    ("associative", "follows surprising connections between images, memories, and half-formed ideas"),
+    ("empathic", "feels for the unspoken emotional need beneath what people say they want"),
+    ("sensory", "imagines what the solution should look, sound, feel, smell, or taste like"),
+    ("playful", "treats the problem like a toy, bends its rules, and follows whatever becomes delightful"),
+    ("mythic", "finds the archetype, ritual, or transformation story hiding inside the problem"),
+    ("aesthetic", "searches for the most elegant, resonant, and emotionally coherent form"),
+    ("improvisational", "builds on the last idea with yes-and energy and discovers the destination en route"),
+    ("dreamlike", "suspends practicality long enough to picture an impossible version worth stealing from"),
 ]
 
 # Delivery style only — orthogonal to cognition on purpose. Dealt without replacement.
@@ -70,32 +63,7 @@ VOICE = [
 # real work ("how should we architect this service") and a beekeeper would just
 # be noise.
 
-# Grounded stand-in for LENS: what they're personally on the hook for. Applies
-# to any professional problem, unlike a domain.
-STAKE = [
-    "whoever has to maintain this in two years",
-    "whoever has to pay for it",
-    "whoever has to sell or explain it to outsiders",
-    "the newest person on the team, who has to understand it",
-    "someone who got badly burned doing this before",
-    "the end user, who never reads the docs",
-    "security and everything that can be abused",
-    "the deadline, and what actually ships this month",
-    "whoever is on call when it breaks at 3am",
-    "the competitor who would love this to fail",
-    "the people whose day-to-day work this changes",
-    "legal, compliance, and whatever the regulator makes of it",
-    "the customer who churns quietly instead of complaining",
-    "whoever has to migrate off this thing later",
-    "the support team who gets the tickets about it",
-    "the people who will never be in a room like this one",
-    "the data, and what happens to it the day this is switched off",
-    "whoever has to test it and prove it works",
-    "the smallest customer, who can't afford the expensive tier",
-    "reputation, and what this looks like on the front page",
-]
-
-# Grounded stand-in for VOICE: temperament, still orthogonal to cognition.
+# Grounded voice: temperament, still orthogonal to cognition.
 TEMPERAMENT = [
     "upbeat and encouraging, builds on other people's ideas out loud",
     "dry and funny, undercuts tension with a one-liner then makes the point",
@@ -128,14 +96,14 @@ NEUTRAL_TEMPERAMENTS = [
     if voice not in POSITIVE_TEMPERAMENTS and voice != SKEPTICAL_TEMPERAMENT
 ]
 
-MODES = {"wild": (LENS, VOICE), "grounded": (STAKE, TEMPERAMENT)}
+MODES = {"wild": VOICE, "grounded": TEMPERAMENT}
 
 
 class Traits(BaseModel):
     mode: str
     cognition: str
     cognition_desc: str
-    lens: str
+    lens: str = ""  # Filled by the persona-writing model, not the trait sampler.
     voice: str
     risk: int = Field(ge=1, le=5)        # 1 = safe and shippable, 5 = moonshot
     abstraction: int = Field(ge=1, le=5)  # 1 = tactical detail, 5 = systemic
@@ -163,21 +131,19 @@ def sample_traits(
     """
     if mode not in MODES:
         raise ValueError(f"unknown mode {mode!r}, expected one of {sorted(MODES)}")
-    lens_pool, voice_pool = MODES[mode]
+    voice_pool = MODES[mode]
     if used:
         # Adding to a live panel: the traits already in the room are spent, so
         # the newcomer stays orthogonal to everyone rather than to nobody.
         spent_cog = {t.cognition for t in used}
         cognition_pool = [c for c in COGNITION if c[0] not in spent_cog]
-        lens_pool = [l for l in lens_pool if l not in {t.lens for t in used}]
         voice_pool = [v for v in voice_pool if v not in {t.voice for t in used}]
     else:
         cognition_pool = COGNITION
-    if n > min(len(cognition_pool), len(lens_pool), len(voice_pool)):
+    if n > min(len(cognition_pool), len(voice_pool)):
         raise ValueError("the trait pools are exhausted — that's as big as a panel gets")
 
     cognitions = rng.sample(cognition_pool, n)
-    lenses = rng.sample(lens_pool, n)
     if mode == "grounded" and not used:
         # Keep one person whose job is to challenge the room, then fill the
         # other seats with an even mix of constructive and neutral voices.
@@ -199,13 +165,12 @@ def sample_traits(
             mode=mode,
             cognition=cog,
             cognition_desc=desc,
-            lens=lens,
             voice=voice,
             risk=rng.randint(1, 5),
             abstraction=rng.randint(1, 5),
             dominance=dom,
         )
-        for (cog, desc), lens, voice, dom in zip(cognitions, lenses, voices, dominance)
+        for (cog, desc), voice, dom in zip(cognitions, voices, dominance)
     ]
 
 
@@ -229,8 +194,12 @@ title already used above.
 - Give them a specific past, not a vague one. "Ran logistics for a touring \
 circus" beats "has experience in operations".
 
+Choose the character's lens yourself. The lens is a short, free-text statement \
+of the perspective they instinctively bring to this specific topic. Make it \
+surprising but useful; do not select from a stock list.
+
 Return JSON with exactly these keys: name, tagline, bio, how_they_argue, \
-pet_peeve, opening_move. All values are strings. tagline is under 10 words, \
+pet_peeve, opening_move, lens. All values are strings. tagline is under 10 words, \
 bio is 2-3 sentences, the rest are one sentence each."""
 
 GROUNDED_SYSTEM = """You invent members of a brainstorming panel. These are \
@@ -255,8 +224,12 @@ title already used above.
 - What makes them distinct is what they push for and what they refuse to let \
 slide, not an accent or a catchphrase.
 
+Choose the character's lens yourself. The lens is a short, free-text statement \
+of the stakeholder, responsibility, or perspective they represent for this \
+specific topic. It must be credible and useful, not selected from a stock list.
+
 Return JSON with exactly these keys: name, tagline, bio, how_they_argue, \
-pet_peeve, opening_move. All values are strings. tagline is under 10 words, \
+pet_peeve, opening_move, lens. All values are strings. tagline is under 10 words, \
 bio is 2-3 sentences, the rest are one sentence each."""
 
 
@@ -273,12 +246,10 @@ def _prompt(t: Traits, topic: str, existing: list[Persona]) -> str:
     ]
     if t.mode == "wild":
         lines += [
-            f"- Drags every problem back to {t.lens}",
             f"- Talks like a {t.voice}",
         ]
     else:
         lines += [
-            f"- Argues on behalf of {t.lens}",
             f"- In the room they are {t.voice}",
         ]
     lines += [
@@ -292,7 +263,7 @@ def _prompt(t: Traits, topic: str, existing: list[Persona]) -> str:
             "story with any of them:",
         ]
         for p in existing:
-            lines.append(f"- {p.name} ({p.tagline}): {p.bio}")
+            lines.append(f"- {p.name} ({p.tagline}; lens: {p.traits.lens}): {p.bio}")
         lines += [
             "",
             "If the people above are all ex-startup operators, this one is not. Draw "
@@ -319,6 +290,8 @@ def _collides(p: Persona, cast: list[Persona]) -> str | None:
             return f"the name {other.name!r}"
         if _normalise(p.bio) == _normalise(other.bio):
             return f"{other.name}'s bio, word for word"
+        if _normalise(p.traits.lens) == _normalise(other.traits.lens):
+            return f"{other.name}'s lens {other.traits.lens!r}"
     return None
 
 
@@ -327,9 +300,15 @@ def _write_persona(
 ) -> Persona:
     """One panellist who isn't a copy of anyone already in the room."""
     prompt = _prompt(traits, topic, cast)
+    person: Persona | None = None
     for _ in range(3):
         data = complete_json(_system(mode), prompt, seed=seed, model=FAST_MODEL)
-        person = Persona(**data, traits=traits)
+        lens = str(data.pop("lens", "")).strip()
+        if not lens:
+            prompt += "\n\nThe lens field is required and must be a specific free-text perspective."
+            seed = None
+            continue
+        person = Persona(**data, traits=traits.model_copy(update={"lens": lens}))
         clash = _collides(person, cast)
         if clash is None:
             return person
@@ -340,6 +319,8 @@ def _write_persona(
             "different decade of experience."
         )
         seed = None
+    if person is None:
+        raise ValueError("the model did not provide the required free-text lens")
     return person
 
 
@@ -386,6 +367,10 @@ Give your first idea on the topic.
 Hard rules:
 - The idea must be genuinely usable, not a joke. Your voice is how you say it, \
 not how well you think.
+- Think hard about the underlying why: the human need, motivation, tension, or \
+desired change behind the topic. The pitch must briefly show why this mechanism \
+would produce that outcome and why people would participate; merely repeating \
+the topic is not a reason.
 - The IDEA ITSELF must be the product of your thinking style, not just the way \
 you introduce it. Someone shown only the idea, with your name removed, should be \
 able to guess which thinking style produced it. If your style is adversarial, the \
