@@ -98,7 +98,10 @@ export default function App() {
         break;
       case 'joined':
       case 'returned':
-        if (agent) setCrew(current => current.map(a => a.id === agent.id ? { ...a, room: event.room } : a));
+        if (agent) {
+          const movers = new Set(data.group || [event.agent]);
+          setCrew(current => current.map(a => movers.has(a.name) ? { ...a, room: event.room } : a));
+        }
         addEntry({ type: 'action', text: `🚪 ${event.agent} ${event.kind === 'joined' ? 'heads to' : 'returns to'} ${room}`, room });
         break;
       case 'invited':

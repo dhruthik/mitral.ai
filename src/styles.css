@@ -50,8 +50,8 @@ input:focus { border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft);
 .stage-heading small { color:#a79fc4; }
 .stage-light { display:inline-block; width:8px; height:8px; border-radius:50%; background:#74e5bc; box-shadow:0 0 14px #74e5bc; }
 .rooms { position:relative; z-index:1; display:grid; grid-template-columns:repeat(3,1fr); gap:12px; padding:0 18px 42px; }
-.room { border:1px dashed #4a3d76; border-radius:16px; min-height:170px; padding:10px 12px 16px; background:#ffffff06; transition:opacity .3s,background .3s; }
-.room.plenary { grid-column:1/-1; min-height:300px; background:#ffffff0a; }
+.room { border:1px dashed #4a3d76; border-radius:16px; height:170px; overflow:auto; padding:10px 12px 16px; background:#ffffff06; transition:opacity .3s,background .3s; }
+.room.plenary { grid-column:1/-1; height:300px; background:#ffffff0a; }
 .room.empty { opacity:.4; }
 .room h3 { margin:0 0 10px; font:700 .6rem Silkscreen; color:#a79fc4; text-transform:uppercase; letter-spacing:.08em; }
 .room-cast { display:flex; flex-wrap:wrap; gap:8px 22px; justify-content:center; align-items:flex-end; }

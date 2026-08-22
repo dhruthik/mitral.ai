@@ -23,6 +23,7 @@ import json
 import random
 from collections import defaultdict
 from dataclasses import dataclass, field
+from itertools import combinations
 from typing import Any, Callable, Protocol
 
 from pydantic import BaseModel, Field
@@ -38,12 +39,6 @@ LOCK_IN_ROUNDS = 4
 # Decay on a speaker's turn weight each time they speak in a room: the forceful
 # one leads early without monologuing.
 DOMINANCE_DECAY = 0.6
-
-# Rounds a solo agent may wait in a working room before being sent home. Zero
-# grace would bounce a room's founder before any invitee can arrive; the
-# no-monologue invariant is safe meanwhile because solo rooms never tick.
-SOLO_GRACE_ROUNDS = 2
-
 
 class Panellist(Protocol):
     """What the orchestrator needs from a persona. `personality.Persona` fits;
@@ -86,7 +81,6 @@ class AgentState:
     joined_round: int = -LOCK_IN_ROUNDS
     done: bool = False
     spoken_in_room: int = 0
-    alone_rounds: int = 0
     move_request: str | None = None
     invites: list[dict] = field(default_factory=list)  # {"from", "room", "round"}
     receipts: list[str] = field(default_factory=list)  # shown once, next turn
@@ -339,22 +333,54 @@ class Meeting:
             return False  # an unreachable voter abstains
 
     def _resolve_movement(self) -> None:
-        """Joins take effect here — at the round boundary, never mid-turn."""
-        for a in self.agents.values():
-            if a.move_request and self._free_to_move(a):
-                self._move(a, a.move_request, kind="joined")
+        """Apply the largest safe batch of joins at the round boundary.
+
+        A batch is safe only when every working room ends either empty or with
+        at least two people. Requests that would create a solo room remain
+        queued, allowing an invited partner to join the same batch later.
+        """
+        eligible = [
+            a for a in self.agents.values()
+            if a.move_request and self._free_to_move(a)
+        ]
+        accepted: tuple[AgentState, ...] = ()
+        for size in range(len(eligible), 0, -1):
+            accepted = next(
+                (batch for batch in combinations(eligible, size) if self._safe_move_batch(batch)),
+                (),
+            )
+            if accepted:
+                break
+
+        # Update the whole batch before emitting anything. Each join event names
+        # its companions so replay clients can render the move atomically too.
+        destinations = {a.name: a.move_request for a in accepted}
+        for a in accepted:
+            target = destinations[a.name]
             a.move_request = None
+            a.room = target
+            a.joined_round = self.round
+            a.spoken_in_room = 0
+            a.done = False
+            a.invites = [i for i in a.invites if i["room"] != target]
+        for a in accepted:
+            target = destinations[a.name]
+            group = [name for name, room in destinations.items() if room == target]
+            self._emit(target, "joined", a.name, {"group": group})
+            a.history.append((len(self.log), target))
+
+        for a in self.agents.values():
             # Invitations go stale rather than piling up forever.
             a.invites = [i for i in a.invites if self.round - i["round"] <= 6]
-        # Invariant 2: a solo agent in a working room goes home — after a short
-        # grace, so a founder can wait for the panellist they invited.
-        for a in list(self.agents.values()):
-            if a.room != PLENARY and len(self.occupants(a.room)) < 2:
-                a.alone_rounds += 1
-                if a.alone_rounds > SOLO_GRACE_ROUNDS:
-                    self._move(a, PLENARY, kind="returned")
-            else:
-                a.alone_rounds = 0
+
+    def _safe_move_batch(self, batch: tuple[AgentState, ...]) -> bool:
+        counts = {room: len(self.occupants(room)) for room in WORKING_ROOMS}
+        for a in batch:
+            if a.room in counts:
+                counts[a.room] -= 1
+            if a.move_request in counts:
+                counts[a.move_request] += 1
+        return all(count != 1 for count in counts.values())
 
     def _free_to_move(self, a: AgentState) -> bool:
         return self.round - a.joined_round >= LOCK_IN_ROUNDS
@@ -363,7 +389,6 @@ class Meeting:
         a.room = room
         a.joined_round = self.round
         a.spoken_in_room = 0
-        a.alone_rounds = 0
         a.done = False
         a.invites = [i for i in a.invites if i["room"] != room]
         self._emit(room, kind, a.name, {})
