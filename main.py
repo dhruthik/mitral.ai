@@ -211,8 +211,8 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
         cast: list[Persona] = []
         try:
             yield encode("meta", id=stream_id, topic=body.topic, engine="llm" if live else "mock",
-                         provider=PROVIDER if live else "mock",
-                         model=settings["turn_model"] if live else "mock", depth=body.depth, seed=seed)
+                         provider=PROVIDER if live else "mock", model=settings["turn_model"] if live else "mock",
+                         depth=body.depth, seed=seed)
             source = generate_cast_iter(body.topic, body.panellists, seed, body.mode) if live else iter(
                 mock_cast(body.topic, body.panellists, seed, body.mode)
             )
@@ -383,9 +383,12 @@ async def transcribe_topic(file: UploadFile = File(...)) -> dict[str, str]:
 
     Unlike the other endpoints this ignores DEV_MODE: a canned transcript
     would be meaningless for testing real speech input, so this always needs
-    a real key regardless of whether the rest of the app is in dev mode.
+    a real key regardless of whether the rest of the app is in dev mode. It
+    also always needs MISTRAL_API_KEY specifically — Voxtral is Mistral-only,
+    so this doesn't follow LLM_PROVIDER the way the panel endpoints do.
     """
-    _require_key()
+    if not os.getenv("MISTRAL_API_KEY"):
+        raise HTTPException(status_code=503, detail="MISTRAL_API_KEY is not set in .env — voice input needs Mistral specifically")
     data = await file.read()
     if not data:
         raise HTTPException(status_code=422, detail="no audio received")

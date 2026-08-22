@@ -107,8 +107,16 @@ def complete_json(
 
 
 def transcribe(data: bytes, filename: str = "audio.webm") -> str:
-    """Speech-to-text via Voxtral, for the "speak your topic" mic input."""
-    resp = client().audio.transcriptions.complete(
+    """Speech-to-text via Voxtral, for the "speak your topic" mic input.
+
+    Mistral-only regardless of LLM_PROVIDER — Claude has no equivalent, so
+    this always talks to Mistral directly rather than going through the
+    provider-switched `client()`/`configured()` above.
+    """
+    key = os.environ.get("MISTRAL_API_KEY")
+    if not key:
+        raise RuntimeError("MISTRAL_API_KEY is not set — grab one from console.mistral.ai")
+    resp = Mistral(api_key=key).audio.transcriptions.complete(
         model="voxtral-mini-latest",
         file={"content": data, "file_name": filename},
     )

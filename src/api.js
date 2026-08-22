@@ -32,6 +32,7 @@ export function runMeeting(topic, { panellists, mode, depth }, signal) {
   return post('/api/meeting', { topic, panellists, mode, depth }, signal);
 }
 
+// depth: 'fast' (small model, short budget) or 'deep' (large model, longer budget).
 export async function streamMeeting(topic, { panellists, mode, depth }, handlers = {}, signal) {
   let response;
   try {
