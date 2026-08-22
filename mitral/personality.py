@@ -325,11 +325,19 @@ def generate_cast(
     topic: str, n: int = 5, seed: int | None = None, mode: str = "grounded"
 ) -> list[Persona]:
     """Generate n personalities, sequentially so each can differentiate itself."""
+    return list(generate_cast_iter(topic, n, seed, mode))
+
+
+def generate_cast_iter(
+    topic: str, n: int = 5, seed: int | None = None, mode: str = "grounded"
+):
+    """Yield personalities as soon as each sequential model call finishes."""
     rng = random.Random(seed)
     cast: list[Persona] = []
     for traits in sample_traits(n, rng, mode):
-        cast.append(_write_persona(traits, topic, cast, seed, mode))
-    return cast
+        person = _write_persona(traits, topic, cast, seed, mode)
+        cast.append(person)
+        yield person
 
 
 def add_panellist(
