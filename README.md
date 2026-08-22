@@ -21,6 +21,26 @@ git clone https://github.com/dhruthik/mitral.ai.git
 cd mitral.ai
 ```
 
+### Brainstorm Stage UI
+
+The HTML prototype has been rebuilt as a React app on one shared dark stage.
+It works with demo dialogue by default and can call an OpenAI-compatible LLM
+through the Python API without exposing provider keys to the browser.
+
+```bash
+npm install
+npm run dev
+```
+
+In another terminal, install the Python requirements, set `LLM_API_KEY`, and run:
+
+```bash
+uvicorn main:app --reload --port 8000
+```
+
+Optional settings are documented in `.env.example`. The frontend defaults to
+`http://localhost:8000` for API requests.
+
 ## Contributing
 
 `main` is protected — no direct pushes. Work on a branch and open a PR.
