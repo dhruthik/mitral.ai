@@ -373,6 +373,94 @@ def first_takes(cast: list[Persona], topic: str, seed: int | None = None) -> lis
     return [q for _, q in said]
 
 
+class Deliberation(BaseModel):
+    """What the panel does with the ideas once they're all on the table."""
+
+    plan_speaker: str = Field(description="name of the panellist who makes it testable")
+    plan_text: str = Field(description="how they'd make the leading idea testable, in their voice")
+    test_speaker: str = Field(description="name of the panellist who stress-tests it")
+    test_text: str = Field(description="the failure mode they push on, in their voice")
+    winner_speaker: str = Field(description="name of the panellist whose idea the panel backs")
+    why: str = Field(description="one sentence on why that idea won")
+
+
+DELIBERATE_SYSTEM = """You are running a brainstorming panel that has just \
+heard everyone's opening idea. Now the panel does three things: makes the \
+strongest idea testable, stress-tests it, and picks a winner.
+
+Hard rules:
+- Pick the two speakers from the panel below by how they think. The one who \
+makes it testable should be someone empirical, pragmatic or constraint-driven; \
+the one who stress-tests should be someone adversarial, contrarian or cautious. \
+Do not use the same person twice.
+- Write each line in that person's actual voice, the way they'd say it out loud.
+- Be concrete. Name the pilot, the number, the week, the thing that breaks. \
+"We should validate our assumptions" is a failure.
+- The winner is the idea with the sharpest mechanism, not the loudest pitch. It \
+does not have to be the first one.
+
+Return JSON with exactly these keys: plan_speaker, plan_text, test_speaker, \
+test_text, winner_speaker, why. All strings. plan_text and test_text are 1-2 \
+sentences each, why is one sentence."""
+
+
+def _panel_brief(cast: list[Persona], topic: str, pitches: list[Pitch]) -> str:
+    lines = [f"Topic: {topic}", "", "The panel and what each of them just pitched:"]
+    for p, q in zip(cast, pitches):
+        t = p.traits
+        lines += [
+            f"- {p.name} — {p.tagline}",
+            f"  thinks by being {t.cognition}: {t.cognition_desc}",
+            f"  in the room they are {t.voice}",
+            f"  pitched: {q.idea} (mechanism: {q.mechanism})",
+            f"  {q.pitch}",
+        ]
+    return "\n".join(lines)
+
+
+def deliberate(
+    cast: list[Persona], topic: str, pitches: list[Pitch], seed: int | None = None
+) -> Deliberation:
+    """The plan beat, the stress-test beat, and the panel's verdict."""
+    data = complete_json(DELIBERATE_SYSTEM, _panel_brief(cast, topic, pitches), seed=seed)
+    return Deliberation(**data)
+
+
+REPLY_SYSTEM = """You are one member of a brainstorming panel. Someone in the \
+room has just said something to you. Answer them in one or two sentences, in \
+your own voice.
+
+Hard rules:
+- Actually engage with what they said. Take it somewhere, push back on it, or \
+build on it — do not just acknowledge it and promise to consider it later.
+- Stay in character and keep thinking the way you think.
+- No preamble, no "great question". Just the reply.
+
+Return JSON with exactly one key: text."""
+
+
+def reply(p: Persona, topic: str, message: str, seed: int | None = None) -> str:
+    """One panellist's answer to something a human said in the room."""
+    t = p.traits
+    prompt = "\n".join([
+        f"Topic: {topic}",
+        "",
+        f"You are {p.name} — {p.tagline}.",
+        p.bio,
+        f"You think by being {t.cognition}: {t.cognition_desc}",
+        f"You drag every problem back to {t.lens}." if t.mode == "wild"
+        else f"You argue on behalf of {t.lens}.",
+        f"You talk like a {t.voice}." if t.mode == "wild"
+        else f"In the room you are {t.voice}.",
+        f"You argue like this: {p.how_they_argue}",
+        f"It bugs you when: {p.pet_peeve}",
+        "",
+        f"They said: {message}",
+    ])
+    data = complete_json(REPLY_SYSTEM, prompt, seed=seed)
+    return str(data["text"])
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Generate a brainstorming panel.")
     ap.add_argument("topic", help="what the panel will brainstorm about")

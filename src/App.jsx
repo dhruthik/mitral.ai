@@ -2,8 +2,8 @@ import { useRef, useState } from 'react';
 import Setup from './components/Setup';
 import Stage from './components/Stage';
 import { IdeaBoard, Transcript } from './components/Panels';
-import { runMeeting } from './api';
-import { makeCrew, crewFromCast } from './data';
+import { runMeeting, replyAs } from './api';
+import { decorateAgents } from './data';
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const id = () => crypto.randomUUID();
@@ -20,15 +20,19 @@ const roomLabel = room => room === 'plenary' ? 'PLENARY' : room.replace('room-',
 
 export default function App() {
   const [topic, setTopic] = useState("a coffee shop that's only open at night");
-  const [crew, setCrew] = useState(makeCrew);
-  const [running, setRunning] = useState(false);
+  const [panellists, setPanellists] = useState(4);
+  const [mode, setMode] = useState('grounded');
+  const [crew, setCrew] = useState([]);
+  const [phase, setPhase] = useState('setup'); // setup | casting | running
   const [paused, setPaused] = useState(false);
   const [entries, setEntries] = useState([]);
   const [ideas, setIdeas] = useState([]);
   const [speaker, setSpeaker] = useState(null);
   const [winner, setWinner] = useState(null);
   const [message, setMessage] = useState('');
-  const [llmStatus, setLlmStatus] = useState('mock');
+  const [error, setError] = useState('');
+  const [model, setModel] = useState('');
+  const session = useRef(null);
   const cancelled = useRef(false);
   const pausedRef = useRef(false);
   const skipping = useRef(false);
@@ -36,29 +40,32 @@ export default function App() {
 
   async function start() {
     const cleanTopic = topic.trim() || 'a delightful new community space';
-    setTopic(cleanTopic); setRunning(true); setPaused(false); pausedRef.current = false; skipping.current = false;
-    setWinner(null); setIdeas([]); setEntries([]); setSpeaker(null);
+    setTopic(cleanTopic); setPhase('casting'); setError('');
+    setPaused(false); pausedRef.current = false; skipping.current = false;
+    setWinner(null); setIdeas([]); setEntries([]); setCrew([]); setSpeaker(null);
     cancelled.current = false;
-    addEntry({ type: 'system', text: `🧬 Convening a panel for “${cleanTopic}”…` });
 
-    let meeting;
+    let data;
     try {
-      meeting = await runMeeting(cleanTopic, { n: 4 });
-    } catch (error) {
-      addEntry({ type: 'system', text: `⚠️ Could not reach the meeting server: ${error.message}. Is the API running on :8000?` });
+      data = await runMeeting(cleanTopic, { panellists, mode });
+    } catch (exception) {
+      if (!cancelled.current) { setError(exception.message); setPhase('setup'); }
       return;
     }
     if (cancelled.current) return;
-    setLlmStatus(meeting.mode === 'llm' ? 'connected' : 'mock');
-    const cast = crewFromCast(meeting.cast);
-    setCrew(cast);
-    addEntry({ type: 'system', text: `🎭 ${cast.map(a => a.name).join(', ')} take the stage. ${meeting.turns} turns over ${meeting.rounds} rounds ahead.` });
-    playback(meeting, cast);
+
+    session.current = data;
+    setModel(data.engine === 'llm' ? data.model : 'offline demo');
+    const agents = decorateAgents(data.agents);
+    setCrew(agents);
+    setPhase('running');
+    addEntry({ type: 'system', text: `🎭 ${agents.map(a => a.name).join(', ')} take the stage — ${data.turns} turns over ${data.rounds} rounds.` });
+    playback(data, agents);
   }
 
-  async function playback(meeting, cast) {
-    const byName = Object.fromEntries(cast.map(agent => [agent.name, agent]));
-    for (const event of meeting.events) {
+  async function playback(data, agents) {
+    const byName = Object.fromEntries(agents.map(agent => [agent.name, agent]));
+    for (const event of data.events) {
       while (pausedRef.current && !cancelled.current) await wait(200);
       if (cancelled.current) return;
       applyEvent(event, byName);
@@ -115,41 +122,61 @@ export default function App() {
       case 'room_closed':
         addEntry({ type: 'system', text: `🔒 ${room} wraps up.` });
         break;
-      case 'session_closed': {
+      case 'session_closed':
         if (data.answer) setWinner(data.answer);
         addEntry({ type: 'system', text: data.answer ? `🏛 The session closes — ${data.answer} is the panel's answer.` : '🏛 The session closes without an agreed answer.' });
         setSpeaker(null);
         break;
-      }
       default:
         break;
     }
   }
 
-  function interject(event) {
+  async function interject(event) {
     event.preventDefault();
     const text = message.trim();
-    if (!text) return;
+    if (!text || !session.current) return;
     addEntry({ who: 'You', text, type: 'user' });
     setMessage('');
-    const mentioned = crew.find(agent => text.toLowerCase().includes(`@${agent.name.toLowerCase()}`));
+    const mentioned = crew.find(agent => text.toLowerCase().includes(`@${agent.name.split(' ')[0].toLowerCase()}`));
     const responder = mentioned || crew[Math.floor(Math.random() * crew.length)];
-    setTimeout(() => addEntry({ who: responder.name, text: `Good steer. I’m folding “${text.replace(/^@\w+\s*/, '')}” into our next pass.`, room: roomLabel(responder.room), color: responder.color }), 450);
+    setSpeaker(responder.id);
+    try {
+      const { text: answer } = await replyAs(topic, responder.persona, text.replace(/^@\w+\s*/, ''));
+      addEntry({ who: responder.name, text: answer, room: roomLabel(responder.room), color: responder.color });
+    } catch (exception) {
+      addEntry({ type: 'system', text: `⚠️ ${responder.name} couldn't answer: ${exception.message}` });
+    } finally {
+      setSpeaker(null);
+    }
+  }
+
+  function leave() {
+    cancelled.current = true; session.current = null;
+    setPhase('setup'); setSpeaker(null);
   }
 
   return <>
     <div className="app-shell">
       <header><div className="logo">BRAINSTORM STAGE<span>_</span></div><p>One stage, many ways of thinking.</p></header>
-      {!running ? <Setup topic={topic} setTopic={setTopic} crew={crew} reroll={() => setCrew(makeCrew())} start={start} /> : <main className="session">
-        <div className="topic-chip"><small>TOPIC</small>{topic}<span className={`api-state ${llmStatus}`}>{llmStatus === 'connected' ? 'LLM panel' : 'demo panel'}</span></div>
+      {phase === 'setup' && <Setup {...{ topic, setTopic, panellists, setPanellists, mode, setMode, start, error }} />}
+      {phase === 'casting' && <main className="setup card">
+        <p className="eyebrow">Casting the panel</p>
+        <h1>Convening your panellists…</h1>
+        <p className="intro">The panel, its proposals, and every vote are decided before the curtain rises — then played back live on the stage.</p>
+        <button className="button secondary" onClick={leave}>Cancel</button>
+      </main>}
+      {phase === 'running' && <main className="session">
+        <div className="topic-chip"><small>TOPIC</small>{topic}<span className="api-state connected">{model}</span></div>
         <div className="workspace"><Stage crew={crew} activeSpeaker={speaker} /><Transcript entries={entries} /></div>
         <IdeaBoard ideas={ideas} winner={winner} />
       </main>}
     </div>
-    {running && <footer className="dock"><div className="dock-inner">
+    {phase === 'running' && <footer className="dock"><div className="dock-inner">
       <div className="controls">
         <button className="button secondary" onClick={() => setPaused(value => { pausedRef.current = !value; return !value; })}>{paused ? '▶ Resume' : '⏸ Pause'}</button>
         <button className="button secondary" onClick={() => { skipping.current = true; pausedRef.current = false; setPaused(false); }}>⏭ Skip to verdict</button>
+        <button className="button secondary" onClick={leave}>✕ New session</button>
       </div>
       <form onSubmit={interject}><input value={message} onChange={event => setMessage(event.target.value)} placeholder="Jump in… @mention any agent" aria-label="Message the group" /><button className="button">Say it</button></form>
     </div></footer>}

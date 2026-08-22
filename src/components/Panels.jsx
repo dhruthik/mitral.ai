@@ -12,11 +12,16 @@ export function Transcript({ entries }) {
 
 export function IdeaBoard({ ideas, winner }) {
   return <section className="board card">
-    <h2>Idea board <span>{ideas.length} {ideas.length === 1 ? 'idea' : 'ideas'}</span></h2>
+    <h2>Proposal board <span>{ideas.length} {ideas.length === 1 ? 'proposal' : 'proposals'}</span></h2>
     <div className="idea-shelf">
-      {!ideas.length && <p className="empty">Ideas from every room get pinned here…</p>}
-      {ideas.map(idea => <article className={`note ${winner === idea.id ? 'winner' : ''}`} key={idea.id} style={{ '--note-accent': idea.color }}>
-        <strong>{idea.author} <span>· {idea.room}</span></strong><p>{idea.text}</p>
+      {!ideas.length && <p className="empty">Proposals from every room get pinned here…</p>}
+      {ideas.map(idea => <article className={`note ${winner === idea.pid ? 'winner' : ''}`} key={idea.id} style={{ '--note-accent': idea.color }}>
+        <strong>{idea.title} <span>· {idea.author}</span></strong>
+        <p>{idea.text}</p>
+        <footer>
+          <span className="note-room">{idea.carried ? '📌 carried to plenary' : idea.room}</span>
+          {idea.votes > 0 && <span className="note-votes">▲ {idea.votes}</span>}
+        </footer>
       </article>)}
     </div>
   </section>;

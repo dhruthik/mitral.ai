@@ -21,25 +21,72 @@ git clone https://github.com/dhruthik/mitral.ai.git
 cd mitral.ai
 ```
 
-### Brainstorm Stage UI
+### Get a Mistral API key
 
-The HTML prototype has been rebuilt as a React app on one shared dark stage.
-It works with demo dialogue by default and can call an OpenAI-compatible LLM
-through the Python API without exposing provider keys to the browser.
+Everything the panel says comes from Mistral, so you need a key before anything
+runs.
+
+1. Sign up at **[console.mistral.ai](https://console.mistral.ai)**.
+2. Go to **API Keys** → **Create new key**, and copy it. You only get to see it
+   once.
+3. You may need to add a workspace/billing profile first, but the **free tier is
+   enough for this project** — no card required for the experiment plan.
+
+Then put the key in a `.env` file at the repo root:
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and paste the key after `MISTRAL_API_KEY=`. `.env` is gitignored —
+never commit your key. Everything else in `.env.example` is optional and already
+defaults to the right thing for local dev.
+
+### Running it
+
+Backend (serves the API and is the only thing that ever sees your key):
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+```
+
+Frontend, in a second terminal:
 
 ```bash
 npm install
 npm run dev
 ```
 
-In another terminal, install the Python requirements, set `LLM_API_KEY`, and run:
+Open the URL Vite prints (usually `http://localhost:5173`).
+
+Check the key is wired up correctly:
 
 ```bash
-uvicorn main:app --reload --port 8000
+curl http://localhost:8000/api/health
 ```
 
-Optional settings are documented in `.env.example`. The frontend defaults to
-`http://localhost:8000` for API requests.
+`{"status":"ok","llm_configured":true,...}` means you're good. If
+`llm_configured` is `false`, the backend didn't find `MISTRAL_API_KEY` — check
+`.env` is in the repo root and restart uvicorn.
+
+### What actually runs
+
+There is no canned dialogue: the panellists, their opening pitches, the plan and
+stress-test beats, the verdict, and every reply to you are all generated per
+session. `POST /api/session` is therefore a dozen sequential Mistral calls and
+takes roughly a minute — the UI shows a casting screen while it works. Fewer
+panellists is faster.
+
+You can also drive the same engine from the CLI without the web app:
+
+```bash
+python -m mitral.personality "a coffee shop that's only open at night" -n 5 --pitch
+```
+
+Add `--mode wild` for eccentric outsiders instead of grounded colleagues, or
+`--traits-only` to see the sampled traits with no API calls at all.
 
 ## Contributing
 
