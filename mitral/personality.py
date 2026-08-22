@@ -119,6 +119,15 @@ TEMPERAMENT = [
     "a wry veteran who has sat through this exact meeting before",
 ]
 
+SKEPTICAL_TEMPERAMENT = "blunt and skeptical, says the unpopular thing without softening it"
+POSITIVE_TEMPERAMENTS = [
+    TEMPERAMENT[i] for i in (0, 1, 5, 7, 11, 13, 14)
+]
+NEUTRAL_TEMPERAMENTS = [
+    voice for voice in TEMPERAMENT
+    if voice not in POSITIVE_TEMPERAMENTS and voice != SKEPTICAL_TEMPERAMENT
+]
+
 MODES = {"wild": (LENS, VOICE), "grounded": (STAKE, TEMPERAMENT)}
 
 
@@ -169,7 +178,18 @@ def sample_traits(
 
     cognitions = rng.sample(cognition_pool, n)
     lenses = rng.sample(lens_pool, n)
-    voices = rng.sample(voice_pool, n)
+    if mode == "grounded" and not used:
+        # Keep one person whose job is to challenge the room, then fill the
+        # other seats with an even mix of constructive and neutral voices.
+        voices = [SKEPTICAL_TEMPERAMENT]
+        remaining = n - 1
+        positive_count = min((remaining + 1) // 2, len(POSITIVE_TEMPERAMENTS))
+        neutral_count = remaining - positive_count
+        voices += rng.sample(POSITIVE_TEMPERAMENTS, positive_count)
+        voices += rng.sample(NEUTRAL_TEMPERAMENTS, neutral_count)
+        rng.shuffle(voices)
+    else:
+        voices = rng.sample(voice_pool, n)
 
     dominance = [rng.randint(1, 3) for _ in range(n)]
     dominance[rng.randrange(n)] = rng.choice([4, 5])
