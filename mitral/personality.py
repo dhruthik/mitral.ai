@@ -367,6 +367,10 @@ Give your first idea on the topic.
 Hard rules:
 - The idea must be genuinely usable, not a joke. Your voice is how you say it, \
 not how well you think.
+- Think hard about the underlying why: the human need, motivation, tension, or \
+desired change behind the topic. The pitch must briefly show why this mechanism \
+would produce that outcome and why people would participate; merely repeating \
+the topic is not a reason.
 - The IDEA ITSELF must be the product of your thinking style, not just the way \
 you introduce it. Someone shown only the idea, with your name removed, should be \
 able to guess which thinking style produced it. If your style is adversarial, the \

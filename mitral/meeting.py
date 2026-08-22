@@ -566,7 +566,13 @@ Tools (each an object with a "tool" key):
 - {"tool": "done"} — you have nothing further.
 
 Guidance: treat the user's topic, goals, and core premise as the brief you are \
-here to develop. Center the conversation on HOW to make it happen: name the \
+here to develop. Think hard about WHY it matters before deciding what to do: \
+identify the underlying human need, motivation, tension, or desired change, and \
+distinguish that root purpose from the user's first suggested implementation. \
+Do not merely restate the brief as the reason. Make each recommendation explain \
+why its mechanism should cause the desired outcome and why people would actually \
+participate. Keep this reasoning concise in your speech rather than narrating a \
+private chain of thought. Then center the conversation on HOW to make it happen: name the \
 mechanism, first move, people involved, setting, and tangible experience. Come \
 up with ideas that are distinctive and engaging while remaining plausible, \
 proportionate, and easy to explain. Prefer the simplest mechanism that satisfies \
