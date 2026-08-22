@@ -69,9 +69,13 @@ input:focus { border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft);
 .stage-heading small { color:#a79fc4; }
 .stage-light { display:inline-block; width:8px; height:8px; border-radius:50%; background:#74e5bc; box-shadow:0 0 14px #74e5bc; }
 .rooms { position:relative; z-index:1; display:grid; grid-template-columns:repeat(3,1fr); gap:12px; padding:0 18px 42px; }
-.room { border:1px dashed #4a3d76; border-radius:16px; height:170px; overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; padding:10px 12px 16px; background:#ffffff06; transition:opacity .3s,background .3s; }
+.room { border:1px dashed #4a3d76; border-radius:16px; height:170px; overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; padding:10px 12px 16px; background:#ffffff06; transition:opacity .3s,background .3s,border-color .3s; cursor:pointer; }
+.room:hover,.room:focus-visible { border-color:#9d85f2; background:#ffffff0e; outline:none; }
+.room-reading { float:right; color:#c9bcff; font:9px Silkscreen; }
 .room.plenary { grid-column:1/-1; height:300px; background:#ffffff0a; }
 .room.empty { opacity:.4; }
+.room.focused { border-style:solid; border-color:#9d85f2; background:#9d85f21f; box-shadow:0 0 0 1px #9d85f255; opacity:1; }
+.room.dimmed { opacity:.35; }
 .room h3 { margin:0 0 10px; font:700 .6rem Silkscreen; color:#a79fc4; text-transform:uppercase; letter-spacing:.08em; }
 .room-cast { min-height:min-content; display:flex; flex-wrap:wrap; gap:8px 22px; justify-content:center; align-items:flex-end; padding:58px 0 8px; }
 .room:not(.plenary) .avatar { width:64px; }
@@ -91,6 +95,9 @@ input:focus { border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft);
 .entry.user { background:var(--brand-soft); border-color:var(--brand); }
 .entry.action { color:var(--soft); font-size:.85rem; background:transparent; border-left-style:dashed; padding-block:5px; }
 .room-tag { color:var(--soft); font:9px Silkscreen; margin-right:6px; }
+.room-filter { width:100%; margin:-6px 0 12px; padding:7px 10px; display:flex; justify-content:space-between; gap:8px; align-items:center; border:1px solid var(--line); border-radius:9px; background:transparent; color:var(--soft); font:500 .78rem Karla; cursor:pointer; }
+.room-filter:hover { border-color:#9d85f2; color:var(--ink); }
+.room-filter span { font:9px Silkscreen; }
 /* Markdown inside chat entries, notes and bubbles — model output is written in it. */
 .entry p,.speech-bubble p { margin:0; }
 .entry p+p,.entry ul,.entry ol,.entry pre,.entry blockquote,.speech-bubble p+p { margin:6px 0 0; }
