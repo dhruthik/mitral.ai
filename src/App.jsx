@@ -50,6 +50,9 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [model, setModel] = useState('');
   const [provider, setProvider] = useState('');
+  const [chatWidth, setChatWidth] = useState(300);
+  const [chatExpanded, setChatExpanded] = useState(false);
+  const workspace = useRef(null);
   const session = useRef(null);
   const cancelled = useRef(false);
   const request = useRef(null);
@@ -300,6 +303,30 @@ export default function App() {
     }
   }
 
+  function resizeChat(event) {
+    if (chatExpanded || !workspace.current) return;
+    event.preventDefault();
+    const bounds = workspace.current.getBoundingClientRect();
+    const update = pointerEvent => {
+      const width = Math.min(bounds.width * .65, Math.max(240, bounds.right - pointerEvent.clientX));
+      setChatWidth(Math.round(width));
+    };
+    const finish = () => {
+      window.removeEventListener('pointermove', update);
+      window.removeEventListener('pointerup', finish);
+    };
+    window.addEventListener('pointermove', update);
+    window.addEventListener('pointerup', finish, { once: true });
+  }
+
+  function resizeChatWithKeyboard(event) {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    const direction = event.key === 'ArrowLeft' ? 1 : -1;
+    const maximum = workspace.current ? workspace.current.getBoundingClientRect().width * .65 : 640;
+    setChatWidth(current => Math.min(maximum, Math.max(240, current + direction * 24)));
+  }
+
   // The hard stop: tell the backend to abandon the meeting, hang up, and put the
   // room in a state where nothing left on screen can start another model call.
   function stop() {
@@ -330,7 +357,11 @@ export default function App() {
       {phase === 'setup' && <Setup {...{ topic, setTopic, panellists, setPanellists, mode, setMode, depth, setDepth, start, error }} />}
       {phase === 'running' && <main className="session">
         <div className="topic-chip"><small>TOPIC</small>{topic}<span className={`api-state ${stopped ? '' : 'connected'}`}>{stopped ? 'stopped · no API calls' : model}</span></div>
-        <div className="workspace"><Stage crew={crew} activeSpeaker={speaker} bubble={bubble} focusRoom={focusRoom} onFocusRoom={setFocusRoom} /><Transcript entries={visibleEntries} onCopy={() => copyTranscript(visibleEntries)} copied={copied} focusRoom={focusRoom} focusLabel={focusRoom && roomLabel(focusRoom)} onClearFocus={() => setFocusRoom(null)} /></div>
+        <div ref={workspace} className={`workspace ${chatExpanded ? 'chat-expanded' : ''}`} style={{ '--chat-width': `${chatWidth}px` }}>
+          <Stage crew={crew} activeSpeaker={speaker} bubble={bubble} focusRoom={focusRoom} onFocusRoom={setFocusRoom} />
+          <div className="chat-resizer" role="separator" aria-label="Resize chat" aria-orientation="vertical" tabIndex="0" onPointerDown={resizeChat} onKeyDown={resizeChatWithKeyboard} />
+          <Transcript entries={visibleEntries} onCopy={() => copyTranscript(visibleEntries)} copied={copied} focusRoom={focusRoom} focusLabel={focusRoom && roomLabel(focusRoom)} onClearFocus={() => setFocusRoom(null)} expanded={chatExpanded} onToggleExpanded={() => setChatExpanded(current => !current)} />
+        </div>
         <IdeaBoard ideas={ideas} winner={winner} />
       </main>}
     </div>
