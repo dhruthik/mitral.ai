@@ -9,8 +9,8 @@ import os
 import time
 
 from dotenv import load_dotenv
-from mistralai.client import Mistral  # note: mistralai>=2.9 moved this out of the root package
-from mistralai.client.errors.sdkerror import SDKError
+from mistralai import Mistral
+from mistralai.models import SDKError
 
 load_dotenv()
 

@@ -1,16 +1,33 @@
-export default function Avatar({ agent, compact = false, speaking = false, selected = false, onSelect }) {
+import { useEffect, useRef } from 'react';
+import { drawSprite } from '../sprites';
+
+export default function Avatar({ agent, compact = false, speaking = false }) {
+  const canvas = useRef(null);
+
+  useEffect(() => {
+    const element = canvas.current;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let flip = false;
+    let blinkTimer;
+    drawSprite(element, agent.sprite, speaking ? 'talk' : 'idle');
+    if (reducedMotion) return undefined;
+    const timer = window.setInterval(() => {
+      if (speaking) {
+        flip = !flip;
+        drawSprite(element, agent.sprite, flip ? 'talk' : 'idle');
+      } else if (Math.random() < .12) {
+        drawSprite(element, agent.sprite, 'blink');
+        blinkTimer = window.setTimeout(() => drawSprite(element, agent.sprite), 140);
+      }
+    }, 170);
+    return () => { window.clearInterval(timer); window.clearTimeout(blinkTimer); };
+  }, [agent.sprite, speaking]);
+
   return (
-    <button
-      type="button"
-      className={`avatar ${compact ? 'compact' : ''} ${speaking ? 'speaking' : ''} ${selected ? 'selected' : ''}`}
-      style={{ '--agent': agent.color }}
-      onClick={() => onSelect?.(agent)}
-      aria-pressed={selected}
-      title={`Read ${agent.name}'s profile`}
-    >
-      <div className="sprite" aria-hidden="true"><span>{agent.glyph}</span></div>
+    <div className={`avatar ${compact ? 'compact' : ''} ${speaking ? 'speaking' : ''}`} style={{ '--agent': agent.color }}>
+      <div className="sprite-wrap"><canvas ref={canvas} className="pixel-person" width="12" height="16" aria-hidden="true" /></div>
       <strong>{agent.name}</strong>
       <small>{agent.role}</small>
-    </button>
+    </div>
   );
 }

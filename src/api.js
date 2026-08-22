@@ -24,6 +24,13 @@ async function post(path, body, signal) {
   return response.json();
 }
 
+// Runs a whole orchestrated meeting server-side and returns its event log for
+// playback. With a Mistral key configured this is many sequential model calls,
+// so expect it to take a while; without one it's an instant offline mock.
+export function runMeeting(topic, { panellists, mode }, signal) {
+  return post('/api/meeting', { topic, panellists, mode }, signal);
+}
+
 // Casts the panel, gets everyone's opening pitch, and runs the deliberation.
 // That's a dozen sequential Mistral calls, so expect this to take a while.
 export function startSession(topic, { panellists, mode }, signal) {

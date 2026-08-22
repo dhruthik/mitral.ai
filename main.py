@@ -8,6 +8,7 @@ serves the prewritten panel in `mitral.fixture` so the UI can be built instantly
 """
 import os
 import random
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +16,8 @@ from pydantic import BaseModel, Field
 
 from mitral.fixture import canned_deliberation, canned_extra, canned_reply, canned_session
 from mitral.llm import MODEL
+from mitral.meeting import Meeting, llm_turn, llm_vote
+from mitral.mock import MockDriver, mock_cast
 from mitral.personality import (
     MODES,
     Persona,
@@ -53,6 +56,16 @@ class ReplyRequest(BaseModel):
     persona: dict
 
 
+class MeetingRequest(BaseModel):
+    topic: str = Field(min_length=1, max_length=500)
+    panellists: int = Field(default=4, ge=2, le=8)
+    mode: str = Field(default="grounded")  # cast flavor: grounded | wild
+    seed: int | None = None
+    # auto = real Mistral panel when MISTRAL_API_KEY is set, offline mock otherwise
+    engine: Literal["auto", "mock", "llm"] = "auto"
+    plenary_only: bool = False
+
+
 # Vite prints the localhost URL but the browser will happily be pointed at
 # 127.0.0.1 instead, and to CORS those are two different origins — allow both so
 # whichever one you paste in works. FRONTEND_ORIGIN overrides, comma-separated.
@@ -88,6 +101,54 @@ def health() -> dict[str, object]:
     }
 
 
+@app.post("/api/meeting")
+def meeting(body: MeetingRequest) -> dict[str, object]:
+    """Run one orchestrated meeting to completion and return its event log.
+
+    The frontend plays the log back at its own pace, so this stays a plain
+    request/response — no streaming needed until turns get LLM-slow.
+    """
+    if body.mode not in MODES:
+        raise HTTPException(status_code=422, detail=f"mode must be one of {sorted(MODES)}")
+    live = body.engine == "llm" or (body.engine == "auto" and bool(os.getenv("MISTRAL_API_KEY")))
+    if body.engine == "llm":
+        _require_key()
+    seed = body.seed if body.seed is not None else random.randrange(1 << 30)
+    try:
+        if live:
+            cast = generate_cast(body.topic, body.panellists, seed, body.mode)
+            turn_fn, vote_fn = llm_turn, llm_vote
+        else:
+            cast = mock_cast(body.topic, body.panellists, seed, body.mode)
+            driver = MockDriver(body.topic, cast, seed)
+            turn_fn, vote_fn = driver.turn, driver.vote
+        result = Meeting(
+            body.topic,
+            cast,
+            turn_fn=turn_fn,
+            vote_fn=vote_fn,
+            seed=seed,
+            working_rooms=not body.plenary_only,
+            total_turn_cap=60 if live else 40,
+        ).run()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _upstream(exc) from exc
+    return {
+        "topic": body.topic,
+        "engine": "llm" if live else "mock",
+        "model": MODEL if live else "mock",
+        "seed": seed,
+        "agents": _agents(cast),
+        "events": [e.model_dump() for e in result.events],
+        "proposals": [p.model_dump() for p in result.proposals],
+        "answer": result.answer.model_dump() if result.answer else None,
+        "rounds": result.rounds,
+        "turns": result.turns,
+    }
+
+
 @app.post("/api/session")
 def session(body: SessionRequest) -> dict[str, object]:
     """Generate a whole panel: who's in the room, what they pitch, what wins."""
@@ -106,7 +167,7 @@ def session(body: SessionRequest) -> dict[str, object]:
         except Exception as exc:
             raise _upstream(exc) from exc
 
-    agents = [_agent(p, i) for i, p in enumerate(cast)]
+    agents = _agents(cast)
     return {
         "topic": body.topic,
         "model": _model(),
@@ -168,6 +229,10 @@ def respond(body: ReplyRequest) -> dict[str, str]:
         raise _upstream(exc) from exc
 
 
+def _agents(cast: list[Persona]) -> list[dict]:
+    return [_agent(p, i) for i, p in enumerate(cast)]
+
+
 def _agent(p: Persona, i: int) -> dict[str, object]:
     """Persona plus the stage furniture that keeps them visually distinct."""
     return {
@@ -175,6 +240,7 @@ def _agent(p: Persona, i: int) -> dict[str, object]:
         "name": p.name,
         "role": p.tagline,
         "bio": p.bio,
+        "cognition": p.traits.cognition,
         "glyph": GLYPHS[i % len(GLYPHS)],
         "color": COLORS[i % len(COLORS)],
         "index": i,
