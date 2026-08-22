@@ -53,9 +53,20 @@ class MeetingDecisionTests(unittest.TestCase):
     def test_proposal_prompt_keeps_board_copy_concise(self):
         self.assertIn("title of 2-6 words", TURN_SYSTEM)
         self.assertIn("2-3 natural sentences totaling at most 60 words", TURN_SYSTEM)
+        self.assertIn("has not read the conversation", TURN_SYSTEM)
+        self.assertIn("State the goal, the complete approach", TURN_SYSTEM)
+        self.assertIn("Do not refer to the discussion, another proposal, or an unstated idea", TURN_SYSTEM)
         self.assertIn("why it is the best fit", TURN_SYSTEM)
         self.assertIn("why the strongest alternatives are worse", TURN_SYSTEM)
         self.assertIn("No headings, bullets, markdown", TURN_SYSTEM)
+
+    def test_turn_prompt_prevents_proposal_ratchets(self):
+        self.assertIn("complete, independent approach", TURN_SYSTEM)
+        self.assertIn("An amendment, contract clause, implementation detail, or rider", TURN_SYSTEM)
+        self.assertIn("belongs in speech as feedback", TURN_SYSTEM)
+        self.assertIn("pull back to the user's goal", TURN_SYSTEM)
+        self.assertIn("plausible, proportionate, and easy to explain", TURN_SYSTEM)
+        self.assertIn("Prefer the simplest mechanism", TURN_SYSTEM)
 
     def test_turn_prompt_treats_user_idea_as_the_brief(self):
         self.assertIn("Work with their idea", TURN_SYSTEM)
