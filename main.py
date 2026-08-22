@@ -11,6 +11,7 @@ import os
 import queue
 import random
 import threading
+import uuid
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
@@ -19,8 +20,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from mitral.fixture import canned_deliberation, canned_extra, canned_reply, canned_session
-from mitral.llm import MODEL
-from mitral.meeting import Meeting, llm_turn, llm_vote
+from mitral.llm import MODEL, PROVIDER, configured
+from mitral.meeting import Meeting, MeetingCancelled, llm_turn, llm_vote
 from mitral.mock import MockDriver, mock_cast
 from mitral.personality import (
     MODES,
@@ -66,9 +67,10 @@ class MeetingRequest(BaseModel):
     panellists: int = Field(default=4, ge=2, le=8)
     mode: str = Field(default="grounded")  # cast flavor: grounded | wild
     seed: int | None = None
-    # auto = real Mistral panel when MISTRAL_API_KEY is set, offline mock otherwise
+    # auto = selected live provider when its key is set, offline mock otherwise
     engine: Literal["auto", "mock", "llm"] = "auto"
     plenary_only: bool = False
+    session_id: str | None = Field(default=None, max_length=100)
 
 
 # Vite prints the localhost URL but the browser will happily be pointed at
@@ -97,12 +99,16 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 
+ACTIVE_MEETINGS: dict[str, threading.Event] = {}
+ACTIVE_MEETINGS_LOCK = threading.Lock()
+
 
 @app.get("/api/health")
 def health() -> dict[str, object]:
     return {
         "status": "ok",
-        "llm_configured": bool(os.getenv("MISTRAL_API_KEY")),
+        "llm_configured": configured(),
+        "provider": PROVIDER,
         "dev_mode": DEV_MODE,
         "model": _model(),
     }
@@ -120,7 +126,7 @@ def meeting(body: MeetingRequest) -> dict[str, object]:
     # DEV_MODE outranks the engine flag: the whole point is not to spend a minute
     # of sequential Mistral calls (or any credits) every time you reload the UI.
     live = not DEV_MODE and (
-        body.engine == "llm" or (body.engine == "auto" and bool(os.getenv("MISTRAL_API_KEY")))
+        body.engine == "llm" or (body.engine == "auto" and configured())
     )
     if body.engine == "llm" and not DEV_MODE:
         _require_key()
@@ -166,11 +172,18 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
     if body.mode not in MODES:
         raise HTTPException(status_code=422, detail=f"mode must be one of {sorted(MODES)}")
     live = not DEV_MODE and (
-        body.engine == "llm" or (body.engine == "auto" and bool(os.getenv("MISTRAL_API_KEY")))
+        body.engine == "llm" or (body.engine == "auto" and configured())
     )
     if body.engine == "llm" and not DEV_MODE:
         _require_key()
     seed = body.seed if body.seed is not None else random.randrange(1 << 30)
+    session_id = body.session_id or str(uuid.uuid4())
+    stopped = threading.Event()
+    with ACTIVE_MEETINGS_LOCK:
+        previous = ACTIVE_MEETINGS.get(session_id)
+        if previous:
+            previous.set()
+        ACTIVE_MEETINGS[session_id] = stopped
 
     def encode(kind: str, **data) -> str:
         return json.dumps({"type": kind, **data}) + "\n"
@@ -179,11 +192,13 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
         cast: list[Persona] = []
         try:
             yield encode("meta", topic=body.topic, engine="llm" if live else "mock",
-                         model=MODEL if live else "mock", seed=seed)
+                         model=MODEL if live else "mock", seed=seed, session_id=session_id)
             source = generate_cast_iter(body.topic, body.panellists, seed, body.mode) if live else iter(
                 mock_cast(body.topic, body.panellists, seed, body.mode)
             )
             for person in source:
+                if stopped.is_set():
+                    return
                 cast.append(person)
                 yield encode("agent", agent=_agent(person, len(cast) - 1))
 
@@ -206,8 +221,11 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
                         working_rooms=not body.plenary_only,
                         total_turn_cap=60 if live else 40,
                         on_event=lambda event: updates.put(("event", event.model_dump())),
+                        should_stop=stopped.is_set,
                     ).run()
                     updates.put(("result", result))
+                except MeetingCancelled:
+                    return
                 except Exception as exc:
                     updates.put(("error", exc))
 
@@ -230,12 +248,30 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
                     raise value
         except Exception as exc:
             yield encode("error", message=_upstream(exc).detail)
+        finally:
+            # StreamingResponse closes this generator when fetch is aborted.
+            # The current provider call cannot be interrupted safely, but no
+            # subsequent agent turn or vote will be scheduled after it returns.
+            stopped.set()
+            with ACTIVE_MEETINGS_LOCK:
+                if ACTIVE_MEETINGS.get(session_id) is stopped:
+                    ACTIVE_MEETINGS.pop(session_id, None)
 
     return StreamingResponse(
         stream(),
         media_type="application/x-ndjson",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.post("/api/meeting/{session_id}/cancel")
+def cancel_meeting(session_id: str) -> dict[str, bool]:
+    """Explicitly stop a streamed meeting, even if its HTTP reader is blocked."""
+    with ACTIVE_MEETINGS_LOCK:
+        stopped = ACTIVE_MEETINGS.get(session_id)
+    if stopped:
+        stopped.set()
+    return {"cancelled": stopped is not None}
 
 
 @app.post("/api/session")
@@ -343,10 +379,11 @@ def _model() -> str:
 
 
 def _require_key() -> None:
-    if not os.getenv("MISTRAL_API_KEY"):
+    if not configured():
+        key_name = "ANTHROPIC_API_KEY" if PROVIDER == "claude" else "MISTRAL_API_KEY"
         raise HTTPException(
             status_code=503,
-            detail="MISTRAL_API_KEY is not set — get one at https://console.mistral.ai and put it in .env",
+            detail=f"{key_name} is not set in .env",
         )
 
 

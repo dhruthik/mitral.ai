@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import Setup from './components/Setup';
 import Stage from './components/Stage';
 import { IdeaBoard, Transcript } from './components/Panels';
-import { streamMeeting, replyAs } from './api';
+import { cancelMeeting, streamMeeting, replyAs } from './api';
 import { decorateAgents } from './data';
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -24,7 +24,6 @@ export default function App() {
   const [mode, setMode] = useState('grounded');
   const [crew, setCrew] = useState([]);
   const [phase, setPhase] = useState('setup'); // setup | casting | running
-  const [paused, setPaused] = useState(false);
   const [entries, setEntries] = useState([]);
   const [ideas, setIdeas] = useState([]);
   const [speaker, setSpeaker] = useState(null);
@@ -35,29 +34,34 @@ export default function App() {
   const [model, setModel] = useState('');
   const session = useRef(null);
   const cancelled = useRef(false);
-  const pausedRef = useRef(false);
-  const skipping = useRef(false);
   const request = useRef(null);
+  const activeSessionId = useRef(null);
   const addEntry = entry => setEntries(current => [...current, { id: id(), ...entry }]);
 
   async function start() {
+    stopActiveSession();
     const cleanTopic = topic.trim() || 'a delightful new community space';
     setTopic(cleanTopic); setPhase('running'); setError('');
-    setPaused(false); pausedRef.current = false; skipping.current = false;
     setWinner(null); setIdeas([]); setEntries([]); setCrew([]); setSpeaker(null); setBubble(null);
+    setMessage(''); setModel('assembling panel…');
     cancelled.current = false;
-    request.current?.abort();
-    request.current = new AbortController();
+    const controller = new AbortController();
+    const sessionId = id();
+    request.current = controller;
+    activeSessionId.current = sessionId;
     const byName = {};
+    const isCurrent = () => request.current === controller && !cancelled.current;
     session.current = { agents: [] };
-    setModel('assembling panel…');
     addEntry({ type: 'system', text: '🎭 The stage is open. Panellists will appear as they are created.' });
 
     let data;
     try {
-      data = await streamMeeting(cleanTopic, { panellists, mode }, {
-        meta: update => setModel(update.engine === 'llm' ? update.model : 'offline demo'),
+      data = await streamMeeting(cleanTopic, { panellists, mode, sessionId }, {
+        meta: update => {
+          if (isCurrent()) setModel(update.engine === 'llm' ? update.model : 'offline demo');
+        },
         agent: update => {
+          if (!isCurrent()) return;
           const agent = decorateAgents([update.agent])[0];
           byName[agent.name] = agent;
           session.current.agents.push(update.agent);
@@ -65,21 +69,28 @@ export default function App() {
           addEntry({ type: 'system', text: `✦ ${agent.name} joins the panel — ${agent.role}.` });
         },
         event: async update => {
-          while (pausedRef.current && !cancelled.current) await wait(200);
-          if (cancelled.current) return;
+          if (!isCurrent()) return;
           applyEvent(update.event, byName);
-          if (!skipping.current) await wait(DELAYS[update.event.kind] ?? 500);
+          await wait(DELAYS[update.event.kind] ?? 500);
         },
-      }, request.current.signal);
+      }, controller.signal);
     } catch (exception) {
       if (exception.name === 'AbortError') return;
       if (!cancelled.current) { setError(exception.message); setPhase('setup'); }
       return;
     }
-    if (cancelled.current) return;
+    if (cancelled.current || request.current !== controller) return;
 
     session.current = data;
     setSpeaker(null); setBubble(null);
+  }
+
+  function stopActiveSession() {
+    const sessionId = activeSessionId.current;
+    activeSessionId.current = null;
+    request.current?.abort();
+    request.current = null;
+    if (sessionId) cancelMeeting(sessionId).catch(() => {});
   }
 
   function applyEvent(event, byName) {
@@ -168,7 +179,7 @@ export default function App() {
   }
 
   function leave() {
-    cancelled.current = true; request.current?.abort(); session.current = null;
+    cancelled.current = true; stopActiveSession(); session.current = null;
     setPhase('setup'); setSpeaker(null); setBubble(null);
   }
 
@@ -184,8 +195,6 @@ export default function App() {
     </div>
     {phase === 'running' && <footer className="dock"><div className="dock-inner">
       <div className="controls">
-        <button className="button secondary" onClick={() => setPaused(value => { pausedRef.current = !value; return !value; })}>{paused ? '▶ Resume' : '⏸ Pause'}</button>
-        <button className="button secondary" onClick={() => { skipping.current = true; pausedRef.current = false; setPaused(false); }}>⏭ Skip to verdict</button>
         <button className="button secondary" onClick={leave}>✕ New session</button>
       </div>
       <form onSubmit={interject}><input value={message} onChange={event => setMessage(event.target.value)} placeholder="Jump in… @mention any agent" aria-label="Message the group" /><button className="button">Say it</button></form>

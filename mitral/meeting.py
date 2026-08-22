@@ -107,6 +107,10 @@ TurnFn = Callable[[Any, str], dict]
 VoteFn = Callable[[Any, str], bool]
 
 
+class MeetingCancelled(Exception):
+    """Raised between turns when the client has abandoned a live meeting."""
+
+
 class Meeting:
     def __init__(
         self,
@@ -120,6 +124,7 @@ class Meeting:
         room_turn_cap: int = 18,
         total_turn_cap: int = 80,
         on_event: Callable[[Event], None] | None = None,
+        should_stop: Callable[[], bool] | None = None,
     ):
         if len(cast) < 2:
             raise ValueError("a meeting needs at least two panellists")
@@ -131,6 +136,7 @@ class Meeting:
         self.room_turn_cap = room_turn_cap
         self.total_turn_cap = total_turn_cap
         self.on_event = on_event
+        self.should_stop = should_stop or (lambda: False)
 
         self.agents = {p.name: AgentState(persona=p) for p in cast}
         self.log: list[Event] = []
@@ -147,8 +153,12 @@ class Meeting:
 
     def run(self) -> MeetingResult:
         while self.result is None:
+            if self.should_stop():
+                raise MeetingCancelled()
             self.round += 1
             for room in ROOMS:
+                if self.should_stop():
+                    raise MeetingCancelled()
                 occupants = self.occupants(room)
                 if len(occupants) < 2:
                     continue  # invariant 2: no monologues
@@ -530,10 +540,14 @@ Tools (each an object with a "tool" key):
 - {"tool": "call_vote", "proposal_id": "p1"} — the room votes; a majority adopts it and closes the room.
 - {"tool": "done"} — you have nothing further.
 
-Guidance: build on or attack what was actually said. Propose when you have \
-something concrete; upvote what deserves it; call a vote when a proposal has \
-clearly won the room; say done when you are repeating yourself. Do not \
-narrate tool use in your speech."""
+Guidance: build on or attack what was actually said. You are allowed and \
+encouraged to leave the plenary for room-a, room-b, or room-c when an idea needs \
+focused work. Invite at least one specific panellist and request join_room; a \
+working room only opens when two or more people can enter together. Use that \
+room to sharpen a proposal, then vote to carry it back to the plenary. Propose \
+when you have something concrete; upvote what deserves it; call a vote when a \
+proposal has clearly won the room; say done when you are repeating yourself. \
+Do not narrate tool use in your speech."""
 
 VOTE_SYSTEM = """You are a panellist deciding a yes/no vote. Weigh it in \
 character and reply with JSON: {"vote": "yes"} or {"vote": "no"}."""

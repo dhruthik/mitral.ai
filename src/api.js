@@ -31,13 +31,13 @@ export function runMeeting(topic, { panellists, mode }, signal) {
   return post('/api/meeting', { topic, panellists, mode }, signal);
 }
 
-export async function streamMeeting(topic, { panellists, mode }, handlers = {}, signal) {
+export async function streamMeeting(topic, { panellists, mode, sessionId }, handlers = {}, signal) {
   let response;
   try {
     response = await fetch(`${API_URL}/api/meeting/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic, panellists, mode }),
+      body: JSON.stringify({ topic, panellists, mode, session_id: sessionId }),
       signal,
     });
   } catch (exception) {
@@ -69,6 +69,10 @@ export async function streamMeeting(topic, { panellists, mode }, handlers = {}, 
     if (done) break;
   }
   return result;
+}
+
+export function cancelMeeting(sessionId) {
+  return post(`/api/meeting/${encodeURIComponent(sessionId)}/cancel`, {});
 }
 
 // Casts the panel, gets everyone's opening pitch, and runs the deliberation.
