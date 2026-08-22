@@ -69,6 +69,15 @@ def complete_json(
     raise AssertionError("unreachable")
 
 
+def transcribe(data: bytes, filename: str = "audio.webm") -> str:
+    """Speech-to-text via Voxtral, for the "speak your topic" mic input."""
+    resp = client().audio.transcriptions.complete(
+        model="voxtral-mini-latest",
+        file={"content": data, "file_name": filename},
+    )
+    return resp.text
+
+
 def _as_object(data: object) -> dict:
     """JSON mode guarantees valid JSON, not a top-level object.
 

@@ -44,6 +44,7 @@ export default function App() {
   const [topic, setTopic] = useState("a coffee shop that's only open at night");
   const [panellists, setPanellists] = useState(4);
   const [mode, setMode] = useState('grounded');
+  const [depth, setDepth] = useState('fast');
   const [crew, setCrew] = useState([]);
   const [phase, setPhase] = useState('setup'); // setup | casting | running
   const [paused, setPaused] = useState(false);
@@ -69,7 +70,7 @@ export default function App() {
 
     let data;
     try {
-      data = await runMeeting(cleanTopic, { panellists, mode });
+      data = await runMeeting(cleanTopic, { panellists, mode, depth });
     } catch (exception) {
       if (!cancelled.current) { setError(exception.message); setPhase('setup'); }
       return;
@@ -77,7 +78,9 @@ export default function App() {
     if (cancelled.current) return;
 
     session.current = data;
-    setModel(data.engine === 'llm' ? data.model : 'offline demo');
+    const engineLabel = data.engine === 'llm' ? data.model : 'offline demo';
+    const depthLabel = data.depth === 'deep' ? 'deep dive' : 'fast take';
+    setModel(`${engineLabel} · ${depthLabel}`);
     const agents = decorateAgents(data.agents);
     setCrew(agents);
     setPhase('running');
@@ -184,7 +187,7 @@ export default function App() {
   return <>
     <div className="app-shell">
       <header><div className="logo">BRAINSTORM STAGE<span>_</span></div><p>One stage, many ways of thinking.</p></header>
-      {phase === 'setup' && <Setup {...{ topic, setTopic, panellists, setPanellists, mode, setMode, start, error }} />}
+      {phase === 'setup' && <Setup {...{ topic, setTopic, panellists, setPanellists, mode, setMode, depth, setDepth, start, error }} />}
       {phase === 'casting' && <main className="setup card">
         <p className="eyebrow">Casting the panel</p>
         <CastingHeadline />
