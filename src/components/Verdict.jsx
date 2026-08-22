@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Markdown from './Markdown';
 
 // The panel's closing argument. Everything here is derived from events the
 // client already replayed, so the modal costs no extra round trip.
-export default function Verdict({ winner, milestones, ideas, topic, onClose }) {
+export default function Verdict({ winner, milestones, ideas, topic, onRefine, onClose }) {
   const closeButton = useRef(null);
+  const [feedback, setFeedback] = useState('');
   const votes = winner?.voters?.length ?? winner?.votes ?? 0;
   const ballots = milestones.filter(step => step.kind === 'vote').length;
 
@@ -39,6 +40,15 @@ export default function Verdict({ winner, milestones, ideas, topic, onClose }) {
         <div><strong>{milestones.length}</strong><small>{milestones.length === 1 ? 'turning point' : 'turning points'}</small></div>
       </div>
 
+      <h3>All proposals</h3>
+      <div className="verdict-proposals">
+        {ideas.map(idea => <article key={idea.id} className={winner?.id === idea.id ? 'winner' : ''}>
+          <strong>{idea.pid} · {idea.title}</strong>
+          <div className="note-body"><Markdown text={idea.text} /></div>
+          <small>{idea.author} · ▲ {idea.votes}</small>
+        </article>)}
+      </div>
+
       <h3>How they got there</h3>
       <ol className="verdict-trail">
         {milestones.map(step => <li key={step.id} className={step.kind}>
@@ -50,7 +60,13 @@ export default function Verdict({ winner, milestones, ideas, topic, onClose }) {
         </li>)}
       </ol>
 
-      <div className="verdict-actions"><button className="button" onClick={onClose}>Back to the stage</button></div>
+      <form className="verdict-followup" onSubmit={event => { event.preventDefault(); onRefine(feedback.trim()); }}>
+        <label htmlFor="verdict-feedback">What should the panel reconsider?</label>
+        <textarea id="verdict-feedback" value={feedback} onChange={event => setFeedback(event.target.value)} placeholder="Ask a follow-up or tell the panel what you think…" rows="3" />
+        <button className="button" disabled={!feedback.trim()}>Back to the drawing board</button>
+      </form>
+
+      <div className="verdict-actions"><button className="button secondary" onClick={onClose}>Back to the stage</button></div>
     </div>
   </div>;
 }
