@@ -1,3 +1,7 @@
+<video src="demo-video/brainstorm-stage-demo.mp4" controls width="100%" title="Brainstorm Stage product demo"></video>
+
+<p align="center"><strong><a href="demo-video/brainstorm-stage-demo.mp4">▶ Watch the 1:47 product demo</a></strong></p>
+
 # Brainstorm Stage
 
 Brainstorm Stage turns one prompt into a lively, structured workshop. A fresh cast of AI panellists pitches competing ideas, forms breakout rooms, challenges assumptions, votes, and returns with a decision you can inspect—not just a wall of chat.
