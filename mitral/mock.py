@@ -32,9 +32,29 @@ BANTER = [
 ]
 
 
+ANSWERS = [
+    "\"{said}\" only matters if {aud} come back a second time. Do they?",
+    "The {how} read of \"{said}\": that's the interesting half, the rest is decoration.",
+    "I'd push back on \"{said}\" — it assumes someone here has done this before.",
+    "Cheapest test of \"{said}\": fake it for a weekend and count who shows up.",
+    "Agreed on \"{said}\", but say the number out loud before we build anything.",
+    "\"{said}\" is the part I'd keep. Throw out everything else about {kw}.",
+]
+
+
 def _kw(topic: str, rng: random.Random) -> str:
     words = re.findall(r"[a-z']{4,}", topic.lower()) or ["idea"]
     return rng.choice(words)
+
+
+def _echo(message: str) -> str:
+    """The longest real word in what the human said, to quote back at them.
+
+    There is no parser here, and echoing "what" or "when" reads like the panel
+    misheard you; the longest word is nearly always the one that carries it.
+    """
+    words = re.findall(r"[A-Za-z'-]{4,}", message)
+    return max(words, key=len) if words else "that"
 
 
 def mock_cast(topic: str, n: int = 4, seed: int | None = None, mode: str = "wild") -> list[Persona]:
@@ -157,3 +177,19 @@ class MockDriver:
 
     def vote(self, persona: Persona, question: str) -> bool:
         return True
+
+
+def mock_reply(persona: Persona, topic: str, message: str) -> str:
+    """One panellist's answer to the human, with no API call.
+
+    The offline engine casts and runs the whole meeting; without this the one
+    moment a human speaks would be the only thing in the room that needs a key.
+    Seeded on the panellist and the message so a reply doesn't change under you.
+    """
+    rng = random.Random(f"{persona.name}:{message}")
+    return rng.choice(ANSWERS).format(
+        said=_echo(message),
+        kw=_kw(topic, rng),
+        how=persona.traits.cognition,
+        aud=rng.choice(AUDIENCES),
+    )

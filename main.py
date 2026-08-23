@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 from mitral.fixture import canned_deliberation, canned_extra, canned_reply, canned_session
 from mitral.llm import FAST_MODEL, MODEL, PROVIDER, configured, transcribe
 from mitral.meeting import Meeting, llm_turn, llm_vote
-from mitral.mock import MockDriver, mock_cast
+from mitral.mock import MockDriver, mock_cast, mock_reply
 from mitral.personality import (
     MODES,
     Persona,
@@ -374,7 +374,11 @@ def respond(body: ReplyRequest) -> dict[str, str]:
         raise HTTPException(status_code=422, detail="persona is not a valid panellist") from exc
     if DEV_MODE:
         return {"text": canned_reply(persona, body.message)}
-    _require_key()
+    # No key means the panel on screen was cast and run by the offline mock
+    # engine, so answer in kind. 503ing here would break the one moment the
+    # human gets to speak in a room that otherwise works fine without a key.
+    if not configured():
+        return {"text": mock_reply(persona, body.topic, body.message)}
     try:
         return {"text": reply(persona, body.topic, body.message)}
     except Exception as exc:
