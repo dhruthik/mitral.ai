@@ -1,4 +1,4 @@
-<video src="demo-video/brainstorm-stage-demo.mp4" controls width="100%" title="Brainstorm Stage product demo"></video>
+![Brainstorm Stage product demo](demo-video/brainstorm-stage-demo.gif)
 
 <p align="center"><strong><a href="demo-video/brainstorm-stage-demo.mp4">▶ Watch the 1:47 product demo</a></strong></p>
 
