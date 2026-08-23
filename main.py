@@ -391,8 +391,7 @@ async def transcribe_topic(file: UploadFile = File(...)) -> dict[str, str]:
     Unlike the other endpoints this ignores DEV_MODE: a canned transcript
     would be meaningless for testing real speech input, so this always needs
     a real key regardless of whether the rest of the app is in dev mode. It
-    also always needs MISTRAL_API_KEY specifically — Voxtral is Mistral-only,
-    so this doesn't follow LLM_PROVIDER the way the panel endpoints do.
+    also needs MISTRAL_API_KEY because Voxtral handles the transcription.
     """
     if not os.getenv("MISTRAL_API_KEY"):
         raise HTTPException(status_code=503, detail="MISTRAL_API_KEY is not set in .env — voice input needs Mistral specifically")
@@ -436,10 +435,9 @@ def _model() -> str:
 
 def _require_key() -> None:
     if not configured():
-        key_name = "ANTHROPIC_API_KEY" if PROVIDER == "claude" else "MISTRAL_API_KEY"
         raise HTTPException(
             status_code=503,
-            detail=f"{key_name} is not set in .env",
+            detail="MISTRAL_API_KEY is not set in .env",
         )
 
 
