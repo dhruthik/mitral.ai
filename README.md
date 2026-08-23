@@ -1,129 +1,104 @@
-# mitral.ai
+# Brainstorm Stage
 
-A whimsical multi-agent brainstorming system: you give it an idea, and a cast of
-AI personalities argues about it — holding meetings, forming subcommittees,
-upvoting each other, and occasionally kicking someone out — until they agree on
-something worth showing you.
+Brainstorm Stage turns one prompt into a lively, structured workshop. A fresh cast of AI panellists pitches competing ideas, forms breakout rooms, challenges assumptions, votes, and returns with a decision you can inspect—not just a wall of chat.
 
-## Docs
+![Brainstorm Stage live meeting](docs/screenshots/meeting.png)
 
-All planning, scoping, and division of labour lives in the design doc:
+## What it does
 
-**[Design doc (Google Docs)](https://docs.google.com/document/d/1tsbtnpXFHdyMPPEJMc5Hy6sBhp6leX8fs2Kqn1FKA58/edit)**
+- Creates 3–8 distinct panellists with different reasoning styles and points of view.
+- Runs a visible meeting with proposals, upvotes, breakout rooms, and votes.
+- Keeps the transcript and proposal board alongside the stage.
+- Supports grounded colleagues or eccentric outsiders, plus fast and deep sessions.
+- Lets you pause playback, stop model spend, address individual panellists, and copy the full log.
+- Summarizes the winning proposal and the turning points that led to it.
 
-Read it before starting anything. Right now the scope is brainstorming only; we
-expand to real implementation if there's time.
+<table>
+  <tr>
+    <td><img src="docs/screenshots/setup.png" alt="Brainstorm Stage session setup" /></td>
+    <td><img src="docs/screenshots/verdict.png" alt="Brainstorm Stage final verdict" /></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Shape the panel</em></td>
+    <td align="center"><em>See how the decision was reached</em></td>
+  </tr>
+</table>
 
-## Getting started
+## Quick start
+
+You’ll need Python 3.11+, Node.js 20+, and a [Mistral API key](https://console.mistral.ai/).
 
 ```bash
 git clone https://github.com/dhruthik/mitral.ai.git
 cd mitral.ai
-```
-
-### Choose an AI provider
-
-The panel can run on Mistral or Claude. Set the provider and matching key in
-`.env`:
-
-```env
-LLM_PROVIDER=mistral
-MISTRAL_API_KEY=your-key
-```
-
-or:
-
-```env
-LLM_PROVIDER=claude
-ANTHROPIC_API_KEY=your-key
-```
-
-The default models can be overridden with `MISTRAL_MODEL`,
-`MISTRAL_FAST_MODEL`, `CLAUDE_MODEL`, and `CLAUDE_FAST_MODEL`.
-
-### Get a Mistral API key
-
-1. Sign up at **[console.mistral.ai](https://console.mistral.ai)**.
-2. Go to **API Keys** → **Create new key**, and copy it. You only get to see it
-   once.
-3. You may need to add a workspace/billing profile first, but the **free tier is
-   enough for this project** — no card required for the experiment plan.
-
-Then put the key in a `.env` file at the repo root:
-
-```bash
 cp .env.example .env
 ```
 
-Open `.env` and paste the key after `MISTRAL_API_KEY=`. `.env` is gitignored —
-never commit your key. Everything else in `.env.example` is optional and already
-defaults to the right thing for local dev.
+Add your key to `.env`:
 
-### Running it
+```env
+MISTRAL_API_KEY=your-key
+```
 
-Backend (serves the API and is the only thing that ever sees your key):
+Start the API:
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
-Frontend, in a second terminal:
+In a second terminal, start the web app:
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open the URL Vite prints (usually `http://localhost:5173`).
+Open the URL Vite prints, usually [http://localhost:5173](http://localhost:5173). To confirm the backend sees your key, visit [http://localhost:8000/api/health](http://localhost:8000/api/health) and check that `llm_configured` is `true`.
 
-Check the key is wired up correctly:
+## Configuration
 
-```bash
-curl http://localhost:8000/api/health
+The defaults work for local development. These environment variables are optional:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `MISTRAL_MODEL` | `mistral-large-latest` | Deep deliberation model |
+| `MISTRAL_FAST_MODEL` | `mistral-small-latest` | Casting and fast-session model |
+| `VITE_API_URL` | `http://localhost:8000` | API URL used by the browser |
+| `FRONTEND_ORIGIN` | `http://localhost:5173` | Allowed browser origin for CORS |
+| `DEV_MODE` | `0` | Use the instant, prewritten UI fixture when set to `1` |
+
+### Offline UI development
+
+Set `DEV_MODE=1` in `.env` and restart the API to work on the interface without making model calls. The fixture is instant and free, but always uses the same eight panellists and night-café material.
+
+## How it works
+
+The React/Vite frontend streams meeting events from a FastAPI backend. The backend generates an intentionally varied cast, orchestrates plenary and breakout-room turns, and keeps the Mistral API key out of the browser. The frontend animates those events into the stage, transcript, proposal board, and final decision trail.
+
+```text
+prompt → cast → proposals → breakout rooms → votes → verdict
 ```
 
-`{"status":"ok","llm_configured":true,...}` means you're good. If
-`llm_configured` is `false`, the backend didn't find `MISTRAL_API_KEY` — check
-`.env` is in the repo root and restart uvicorn.
-
-### Dev mode
-
-`DEV_MODE=1` means nothing calls Mistral: every endpoint serves the prewritten
-panel in `mitral/fixture.py`. Sessions are instant and free, which is what you
-want while working on the UI — but it is always the same eight panellists, always
-talking about a night cafe, whatever topic you type. The topic chip reads
-`dev fixture · no API calls` when it's on.
-
-It is off by default: set `DEV_MODE=1` in `.env` and restart uvicorn to use it.
-
-### What actually runs
-
-There is no canned dialogue: the panellists, their opening pitches, the plan and
-stress-test beats, the verdict, and every reply to you are all generated per
-session. `POST /api/session` is therefore a dozen sequential Mistral calls and
-takes roughly a minute — the UI shows a casting screen while it works. Fewer
-panellists is faster.
-
-You can also drive the same engine from the CLI without the web app:
+The same personality engine is available from the command line:
 
 ```bash
 python -m mitral.personality "a coffee shop that's only open at night" -n 5 --pitch
 ```
 
-Add `--mode wild` for eccentric outsiders instead of grounded colleagues, or
-`--traits-only` to see the sampled traits with no API calls at all.
+Use `--mode wild` for eccentric outsiders, `--seed N` for a reproducible cast, or `--traits-only` to sample traits without making API calls.
+
+## Development
+
+```bash
+npm run build
+pytest
+```
+
+More detail lives in [the conversation flow](docs/conversation-flow.md), [sample panels](docs/sample-panels.md), [traits](docs/traits.md), and [an example run](docs/example-run.md).
 
 ## Contributing
 
-`main` is protected — no direct pushes. Work on a branch and open a PR.
-
-```bash
-git checkout -b your-name/what-youre-doing
-git commit -am "what you did"
-git push -u origin your-name/what-youre-doing
-gh pr create
-```
-
-Merge it once it's green — no review required.
+`main` is protected. Create a branch, make your change, and open a pull request.

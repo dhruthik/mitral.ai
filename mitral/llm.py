@@ -1,8 +1,4 @@
-"""Thin provider-neutral wrapper around the configured chat API.
-
-Everything else in the project goes through ``complete_json``. Select Mistral
-or Claude with ``LLM_PROVIDER`` without changing the meeting code.
-"""
+"""Thin wrapper around the Mistral chat API."""
 
 import json
 import os
@@ -13,48 +9,28 @@ from mistralai import Mistral
 
 load_dotenv()
 
-PROVIDER = os.getenv("LLM_PROVIDER", "mistral").strip().lower()
-if PROVIDER not in {"mistral", "claude"}:
-    raise RuntimeError("LLM_PROVIDER must be 'mistral' or 'claude'")
-
-MODEL = (
-    os.getenv("CLAUDE_MODEL", "claude-sonnet-5")
-    if PROVIDER == "claude"
-    else os.getenv("MISTRAL_MODEL", "mistral-large-latest")
-)
+PROVIDER = "mistral"
+MODEL = os.getenv("MISTRAL_MODEL", "mistral-large-latest")
 
 # Writing a personality is a small, high-volume job — a dozen calls per session,
 # each one a short character sketch. The small model does it just as well and
 # several times faster, which is most of the wait on a new session.
-FAST_MODEL = (
-    os.getenv("CLAUDE_FAST_MODEL", "claude-haiku-4-5")
-    if PROVIDER == "claude"
-    else os.getenv("MISTRAL_FAST_MODEL", "mistral-small-latest")
-)
+FAST_MODEL = os.getenv("MISTRAL_FAST_MODEL", "mistral-small-latest")
 
 _client = None
 
 
 def configured() -> bool:
-    key_name = "ANTHROPIC_API_KEY" if PROVIDER == "claude" else "MISTRAL_API_KEY"
-    return bool(os.getenv(key_name))
+    return bool(os.getenv("MISTRAL_API_KEY"))
 
 
 def client():
     global _client
     if _client is None:
-        if PROVIDER == "claude":
-            from anthropic import Anthropic
-
-            key = os.environ.get("ANTHROPIC_API_KEY")
-            if not key:
-                raise RuntimeError("ANTHROPIC_API_KEY is not set")
-            _client = Anthropic(api_key=key)
-        else:
-            key = os.environ.get("MISTRAL_API_KEY")
-            if not key:
-                raise RuntimeError("MISTRAL_API_KEY is not set — grab one from console.mistral.ai")
-            _client = Mistral(api_key=key)
+        key = os.environ.get("MISTRAL_API_KEY")
+        if not key:
+            raise RuntimeError("MISTRAL_API_KEY is not set — grab one from console.mistral.ai")
+        _client = Mistral(api_key=key)
     return _client
 
 
@@ -75,18 +51,6 @@ def complete_json(
     """
     for attempt in range(retries):
         try:
-            if PROVIDER == "claude":
-                # Sonnet 5 rejects non-default sampling parameters, and Claude
-                # does not support Mistral's random_seed parameter.
-                resp = client().messages.create(
-                    model=model,
-                    max_tokens=2_048,
-                    system=system + "\n\nReturn only the requested valid JSON object, with no markdown fences.",
-                    messages=[{"role": "user", "content": user}],
-                )
-                text = "".join(block.text for block in resp.content if block.type == "text")
-                return _as_object(_parse_json(text))
-
             resp = client().chat.complete(
                 model=model,
                 messages=[
@@ -107,12 +71,7 @@ def complete_json(
 
 
 def transcribe(data: bytes, filename: str = "audio.webm") -> str:
-    """Speech-to-text via Voxtral, for the "speak your topic" mic input.
-
-    Mistral-only regardless of LLM_PROVIDER — Claude has no equivalent, so
-    this always talks to Mistral directly rather than going through the
-    provider-switched `client()`/`configured()` above.
-    """
+    """Speech-to-text via Voxtral, for the "speak your topic" mic input."""
     key = os.environ.get("MISTRAL_API_KEY")
     if not key:
         raise RuntimeError("MISTRAL_API_KEY is not set — grab one from console.mistral.ai")
