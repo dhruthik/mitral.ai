@@ -76,6 +76,7 @@ class MeetingRequest(BaseModel):
     plenary_only: bool = False
     # fast = small model, short turn budget. deep = large model, longer budget.
     depth: Literal["fast", "deep"] = "fast"
+    cast: list[dict] | None = None
 
 
 # Model + turn-budget knobs per depth. Votes always use FAST_MODEL regardless
@@ -213,9 +214,15 @@ def meeting_stream(body: MeetingRequest) -> StreamingResponse:
             yield encode("meta", id=stream_id, topic=body.topic, engine="llm" if live else "mock",
                          provider=PROVIDER if live else "mock", model=settings["turn_model"] if live else "mock",
                          depth=body.depth, seed=seed)
-            source = generate_cast_iter(body.topic, body.panellists, seed, body.mode) if live else iter(
-                mock_cast(body.topic, body.panellists, seed, body.mode)
-            )
+            if body.cast:
+                try:
+                    source = iter(Persona(**person) for person in body.cast)
+                except Exception as exc:
+                    raise HTTPException(status_code=422, detail="that isn't a valid panel") from exc
+            else:
+                source = generate_cast_iter(body.topic, body.panellists, seed, body.mode) if live else iter(
+                    mock_cast(body.topic, body.panellists, seed, body.mode)
+                )
             for person in source:
                 if stop.is_set():
                     return  # stopped mid-casting; each persona is its own model call

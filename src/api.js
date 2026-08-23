@@ -33,13 +33,13 @@ export function runMeeting(topic, { panellists, mode, depth }, signal) {
 }
 
 // depth: 'fast' (small model, short budget) or 'deep' (large model, longer budget).
-export async function streamMeeting(topic, { panellists, mode, depth }, handlers = {}, signal) {
+export async function streamMeeting(topic, { panellists, mode, depth, cast }, handlers = {}, signal) {
   let response;
   try {
     response = await fetch(`${API_URL}/api/meeting/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic, panellists, mode, depth }),
+      body: JSON.stringify({ topic, panellists, mode, depth, cast }),
       signal,
     });
   } catch (exception) {

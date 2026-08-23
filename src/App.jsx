@@ -63,7 +63,7 @@ export default function App() {
   const addEntry = entry => setEntries(current => [...current, { id: id(), ...entry }]);
   const addStep = step => setMilestones(current => [...current, { id: id(), ...step }]);
 
-  async function start() {
+  async function start(refinement = '', existingCast = null) {
     const cleanTopic = topic.trim() || 'a delightful new community space';
     setTopic(cleanTopic); setPhase('running'); setError('');
     setWinner(null); setIdeas([]); setEntries([]); setCrew([]); setSpeaker(null); setBubble(null);
@@ -80,7 +80,8 @@ export default function App() {
 
     let data;
     try {
-      data = await streamMeeting(cleanTopic, { panellists, mode, depth }, {
+      const meetingTopic = refinement ? `${cleanTopic}\n\n${refinement}` : cleanTopic;
+      data = await streamMeeting(meetingTopic, { panellists, mode, depth, cast: existingCast }, {
         meta: update => {
           streamId.current = update.id;
           setConnectionStatus(update.engine === 'llm' ? 'online' : 'offline');
@@ -107,6 +108,22 @@ export default function App() {
 
     session.current = data;
     setSpeaker(null); setBubble(null);
+  }
+
+  function refine(feedback) {
+    const proposalContext = ideas.map(idea =>
+      `- ${idea.pid} "${idea.title}" by ${idea.author}: ${idea.text}`,
+    ).join('\n');
+    const refinement = [
+      'This is a follow-up round. Return to the drawing board and reconsider the original topic.',
+      'The previous round produced these proposals:',
+      proposalContext || '(No proposals were carried forward.)',
+      `The user added: ${feedback}`,
+      'Develop, challenge, combine, or replace these ideas, then reach a new decision.',
+    ].join('\n');
+    const existingCast = session.current?.agents?.map(agent => agent.persona) || null;
+    setVerdictOpen(false);
+    start(refinement, existingCast);
   }
 
   function applyEvent(event, byName) {
@@ -365,6 +382,7 @@ export default function App() {
       milestones={milestones}
       ideas={ideas}
       topic={topic}
+      onRefine={refine}
       onClose={() => setVerdictOpen(false)}
     />}
     {phase === 'running' && <footer className="dock"><div className="dock-inner">
