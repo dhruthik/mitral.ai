@@ -1,6 +1,6 @@
 ![Brainstorm Stage product demo](demo-video/brainstorm-stage-demo.gif)
 
-<p align="center"><strong><a href="demo-video/brainstorm-stage-demo.mp4">▶ Watch the 1:47 product demo</a></strong></p>
+<p align="center"><strong><a href="https://drive.google.com/file/d/1d0tgt5AnHgCwEw1No-SZJAO5iSETJ5yp/view?usp=sharing">▶ Watch the 1:47 product demo</a></strong></p>
 
 # Brainstorm Stage
 
